@@ -1,5 +1,6 @@
 """Token-level sidecar API. Tool execution and chat-template rendering stay in the harness."""
 from dataclasses import asdict
+import logging
 import secrets
 from typing import Annotated
 
@@ -32,7 +33,7 @@ class GenerateRequest(Request):
 def create_app(engine: Remory, *, api_key: str) -> FastAPI:
     if not api_key:
         raise ValueError("a nonempty API key is required")
-    app = FastAPI(title="Remory", version="0.1.0")
+    app = FastAPI(title="Remory", version="0.2.0")
 
     def authorize(authorization: Annotated[str | None, Header()] = None,
                   x_remory_session: Annotated[str | None, Header()] = None):
@@ -52,6 +53,7 @@ def create_app(engine: Remory, *, api_key: str) -> FastAPI:
         except (ValueError, TypeError) as error:
             raise HTTPException(400, str(error)) from error
         except (RuntimeError, httpx.HTTPError) as error:
+            logging.getLogger(__name__).exception("Residual backend failed")
             raise HTTPException(502, "residual backend failed; retain original history") from error
 
     @app.get("/health")

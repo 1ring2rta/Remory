@@ -1,0 +1,36 @@
+--- a/python/sglang/srt/model_executor/hook_manager.py
++++ b/python/sglang/srt/model_executor/hook_manager.py
+@@ -51,6 +51,11 @@
+             )
+             continue
+
++        # Remory: bind model-level resources before registering forward hooks.
++        setup_model = getattr(hook, "setup_model", None)
++        if setup_model is not None:
++            setup_model(model)
++
+         for module_name, module in matched:
+             _ = module.register_forward_hook(hook)
+             logger.info(f"Registered forward hook '{spec_name}' " f"on {module_name}")
+--- a/python/sglang/srt/managers/scheduler_output_processor_mixin.py
++++ b/python/sglang/srt/managers/scheduler_output_processor_mixin.py
+@@ -222,11 +222,18 @@
+                         req.return_hidden_states
+                         and logits_output.hidden_states is not None
+                     ):
++                        # A Remory encoding returns memory rows, not one row
++                        # per source token. Partial leaves still produce 64 rows.
++                        packed = getattr(logits_output, "remory_packed_hidden_states", False)
++                        if packed and len(batch.reqs) != 1:
++                            raise RuntimeError("Remory encoding must be a singleton")
++                        row_count = (logits_output.hidden_states.shape[0] if packed
++                                     else len(req.origin_input_ids))
+                         req.hidden_states.append(
+                             logits_output.hidden_states[
+                                 hidden_state_offset : (
+                                     hidden_state_offset := hidden_state_offset
+-                                    + len(req.origin_input_ids)
++                                    + row_count
+                                 )
+                             ]
+                             .cpu()

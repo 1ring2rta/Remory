@@ -11,8 +11,12 @@ The compressor architecture incorporates work from
 commit `204299a02fa31e56b5d425661107ae6cf247e4c6`) and DFlash (MIT).
 Their notices are retained in `LICENSES/SpecForge-MIT.txt` and
 `LICENSES/DFlash-MIT.txt`. The package imports, rather than vendors, Transformers
-and PyTorch. The SGLang adapter implements a wire protocol and includes no SGLang
-server source. Model weight licenses are separate from this code license.
+and PyTorch. Deployment fetches a pinned SGLang checkout (Apache-2.0) and applies the small
+patch in `deploy/sglang.patch`. Its source revision and exact patch contents are
+recorded in `src/remory/backends/sglang_recipe.json`; the Apache-2.0 license is
+included in `LICENSES/SGLang-Apache-2.0.txt`. CUDA components are downloaded from
+NVIDIA with checksum verification and retain their bundled license files. Model
+weight licenses are separate from this code license.
 
-Codex, Claude Code, OpenCode, and Pi are names of independent upstream projects.
-Integration examples do not imply upstream endorsement or full client certification.
+Codex is an independent upstream project. The integration example does not imply
+upstream endorsement or full client certification.

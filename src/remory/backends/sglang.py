@@ -1,165 +1,158 @@
-"""Client for the tested SummaryResidual SGLang ABI (stock SGLang is insufficient)."""
+"""Managed SGLang inference. One owned worker, one public Remory endpoint."""
 from __future__ import annotations
 
-import json
-import math
+import multiprocessing as mp
+import os
 from pathlib import Path
+import signal
+import threading
 import uuid
 
-import httpx
 import numpy as np
 
-from ..types import Contract, Generation, Prepared, token_ids
-
-ABI = "qwen38_summary_residual_sglang_v1"
-HOOK = "context_compression.qwen38_residual_sglang_hook:make_summary_residual_compressor_hook"
-PARAM = "specforge_context_compressor"
-CAPABILITIES = {ABI, "qwen38_recursive_summary_residual_v1",
-                "qwen38_residual_dynamic_summary_v1", "request_cache_bypass_v1"}
-
-
-def metadata_processor() -> str:
-    # A fixed pickle GLOBAL reference, not serialized local bytecode. The server
-    # already ships this no-op class. This client never unpickles remote input.
-    reference = (b"ccontext_compression.sglang_compressor_hook\n"
-                 b"SpecForgeContextCompressorNoOpLogitProcessor\n.")
-    return json.dumps({"callable": reference.hex()})
+from ..types import Contract, Generation, token_ids
 
 
 class SGLangBackend:
-    def __init__(self, base_url: str, config: dict, *, server_checkpoint: str,
-                 server_model: str, api_key: str | None = None, timeout: float = 600,
-                 transport: httpx.BaseTransport | None = None):
-        self.config = config
-        self.server_checkpoint, self.server_model = server_checkpoint, server_model
-        self.http = httpx.Client(base_url=base_url.rstrip("/") + "/", timeout=timeout,
-                                 headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-                                 transport=transport)
-        self.contract = Contract.from_config(config, identity=json.dumps(
-            {"checkpoint": server_checkpoint, "actor": server_model}, sort_keys=True))
+    def __init__(self, config, checkpoint, actor, *, context_limit=32768,
+                 memory_fraction=0.8, gpu=0, timeout=600, startup_timeout=900):
+        from .sglang_worker import run_worker
+        if type(context_limit) is not int or context_limit < 2048:
+            raise ValueError("context limit must be at least 2048")
+        if not 0 < memory_fraction < 1 or type(gpu) is not int or gpu < 0:
+            raise ValueError("invalid GPU index or memory fraction")
+        self.contract = Contract.from_config(config, identity=
+            f"sglang:{Path(actor).resolve()}:{config['target_revision']}")
+        self.context_limit, self.timeout = context_limit - 1, timeout
+        self.lock, self.closed = threading.RLock(), False
+        ctx = mp.get_context("spawn")
+        self.pipe, child = ctx.Pipe()
+        self.process = ctx.Process(target=run_worker, args=(child, {
+            "checkpoint": str(Path(checkpoint).resolve()), "actor": str(Path(actor).resolve()),
+            "context_limit": context_limit, "memory_fraction": memory_fraction, "gpu": gpu,
+        }), name="remory-sglang")
+        self.process.start()
+        child.close()
         try:
-            self.attest()
-        except Exception:
-            self.http.close()
+            self.info = self._receive(startup_timeout)
+            if not self.info.get("disable_radix_cache") or self.info.get("max_running_requests") != 1:
+                raise RuntimeError("worker did not start with isolated residual inference")
+            self.context_limit = min(self.context_limit, self.info["context_length"] - 1)
+        except BaseException:
+            self.close()
             raise
 
-    def close(self):
-        self.http.close()
+    @classmethod
+    def from_pretrained(cls, checkpoint="mocoV3/Remory-Qwen3.8-27B", *, actor_path=None, **kwargs):
+        from ..models.load import resolve_checkpoint, resolve_actor
+        path, config = resolve_checkpoint(checkpoint)
+        return cls(config, path, resolve_actor(config, actor_path), **kwargs)
 
-    def attest(self) -> dict:
-        response = self.http.get("get_server_info")
-        response.raise_for_status()
-        info = response.json()
-        caps = set(info.get("request_capabilities") or [])
-        if not CAPABILITIES <= caps:
-            raise RuntimeError(f"SGLang lacks residual capabilities: {sorted(CAPABILITIES - caps)}")
-        concurrency = info.get("max_running_requests")
-        if type(concurrency) is not int or concurrency < 1 or (
-            concurrency > 1 and "qwen38_residual_cpu_concurrent_v1" not in caps
-            and "soft_memory_prefix_reuse_batch_v1" not in caps
-        ):
-            raise RuntimeError("SGLang does not attest safe soft-memory batching")
-        hooks = [h.get("config", {}) for h in info.get("forward_hooks", [])
-                 if h.get("hook_factory") == HOOK]
-        if len(hooks) != 1 or hooks[0].get("residual_serving_abi") != ABI:
-            raise RuntimeError("missing or incompatible residual hook")
-        # Compare server namespace strings, not client-side Path.resolve(): the
-        # client and worker may be on different hosts or in different containers.
-        if hooks[0].get("checkpoint") != self.server_checkpoint:
-            raise RuntimeError("residual checkpoint differs from configured server checkpoint")
-        if info.get("model_path") != self.server_model:
-            raise RuntimeError("actor differs from configured server model")
-        limits = [info.get(k) for k in ("context_length", "max_total_tokens",
-                                      "max_total_num_tokens", "max_req_input_len")]
-        for state in info.get("internal_states", []) or []:
-            limits.extend(state.get(k) for k in ("max_total_num_tokens", "max_req_input_len"))
-        limits = [int(x) for x in limits if type(x) in (int, float) and math.isfinite(x) and x > 1]
-        if not limits:
-            raise RuntimeError("backend did not advertise its context ceiling")
-        self.context_limit = min(limits) - 1
-        return {"abi": ABI, "context_limit": self.context_limit,
-                "identity": self.contract.identity, "capabilities": sorted(caps)}
+    def _receive(self, timeout):
+        if not self.pipe.poll(timeout):
+            self.close()
+            raise RuntimeError("SGLang worker timed out and was stopped; retain original history")
+        try:
+            message = self.pipe.recv()
+        except (EOFError, OSError) as exc:
+            self.close()
+            raise RuntimeError("SGLang worker exited; inspect its startup logs") from exc
+        if not message["ok"]:
+            raise RuntimeError(message["error"])
+        return message["result"]
 
-    def _request(self, source: Prepared, sampling: dict, *, custom=None, encode=False) -> dict:
-        self.attest()  # Recheck after worker restarts; never quietly use a stock server.
+    def _request(self, source, sampling, payload=None):
         if len(source.input_ids) + sampling["max_new_tokens"] > self.context_limit:
-            raise ValueError("request exceeds backend context ceiling; refusing truncation")
-        payload = {"input_ids": list(source.input_ids), "sampling_params": dict(sampling),
+            raise ValueError("request exceeds context limit; refusing truncation")
+        from .sglang_hook import parameter_carrier
+        request = {"input_ids": list(source.input_ids), "sampling_params": sampling,
                    "rid": "remory-" + uuid.uuid4().hex}
-        if custom:
-            payload["sampling_params"]["custom_params"] = {PARAM: custom}
-            payload.update(custom_logit_processor=metadata_processor(), cache_policy="bypass",
-                           extra_key="remory-" + uuid.uuid4().hex)
-        if encode:
-            payload["return_hidden_states"] = True
-        try:
-            response = self.http.post("generate", json=payload)
-            response.raise_for_status()
-        except httpx.TimeoutException:
+        if payload is not None:
+            request["sampling_params"] = {**sampling, "custom_params": {"remory": payload}}
+            request["custom_logit_processor"] = parameter_carrier()
+            request["return_hidden_states"] = payload["mode"] == "encode"
+        with self.lock:
+            if self.closed:
+                raise RuntimeError("SGLang worker is closed")
             try:
-                self.http.post("abort_request", json={"rid": payload["rid"]}, timeout=5)
-            except httpx.HTTPError:
-                pass
-            raise
-        result = response.json()
-        meta = result.get("meta_info", {})
-        if custom and meta.get("cache_policy") != "bypass":
-            raise RuntimeError("server did not acknowledge cache bypass for soft memory")
-        reason = meta.get("finish_reason")
-        if isinstance(reason, dict) and reason.get("type") in {"abort", "aborted", "cancelled", "error"}:
-            raise RuntimeError("backend aborted residual inference")
-        return result
+                self.pipe.send(request)
+            except (BrokenPipeError, OSError) as exc:
+                self.close()
+                raise RuntimeError("SGLang worker disconnected; retain original history") from exc
+            return self._receive(self.timeout)
 
-    def _memory_fields(self, source):
+    def _memory(self, source):
         if source.memory is None:
             if source.memory_positions:
                 raise ValueError("memory positions require embeddings")
             return {}
-        a = np.asarray(source.memory, dtype=np.float32)
-        p = source.memory_positions
-        if (a.shape != (len(p), self.contract.hidden_size) or not p
-                or not np.isfinite(a).all() or tuple(sorted(set(p))) != p
-                or any(type(i) is not int or not 0 <= i < len(source.input_ids) for i in p)):
-            raise ValueError("invalid sparse memory overrides")
-        return {"memory_positions": list(p), "memory_embeddings": a.tolist()}
+        memory = np.asarray(source.memory, dtype=np.float32)
+        if memory.shape != (len(source.memory_positions), self.contract.hidden_size):
+            raise ValueError("invalid memory shape")
+        return {"positions": list(source.memory_positions), "memory": memory.tolist()}
 
     def encode(self, source, *, start, end, operation, summary=None, input_depth=0, block_depths=()):
-        if operation not in {"summary", "leaves", "recursive_leaves", "parent"}:
-            raise ValueError("unsupported residual operation")
-        if not 0 <= start < end <= len(source.input_ids):
-            raise ValueError("invalid source span")
-        residual = {"abi": ABI, "operation": operation, "input_depth": input_depth}
+        from .sglang_hook import validate_payload
+        payload = {"mode": "encode", "operation": operation, "start": start, "end": end,
+                   "depth": input_depth, "block_depths": list(block_depths), **self._memory(source)}
         if summary is not None:
-            residual["summary_features"] = np.asarray(summary, dtype=np.float32).tolist()
-        if block_depths:
-            residual["block_input_depths"] = list(block_depths)
-        custom = {"version": 1, "mode": "encode", "evidence_spans": [[start, end]],
-                  "source_token_lengths": [end - start], "residual": residual,
-                  **self._memory_fields(source)}
-        result = self._request(source, {"temperature": 0.0, "max_new_tokens": 0},
-                               custom=custom, encode=True)
+            payload["summary"] = np.asarray(summary, dtype=np.float32).tolist()
+        validate_payload(payload, len(source.input_ids), self.contract.hidden_size,
+                         block=self.contract.block_tokens, max_depth=self.contract.max_depth)
+        result = self._request(source, {"temperature": 0.0, "max_new_tokens": 0}, payload)
         chunks = result.get("meta_info", {}).get("hidden_states")
         if not isinstance(chunks, list) or len(chunks) != 1:
-            raise RuntimeError("backend did not return a single packed hidden-state matrix")
-        return np.asarray(chunks[0], dtype=np.float32)
+            raise RuntimeError("worker did not return one complete encoding")
+        memory = np.asarray(chunks[0], dtype=np.float32)
+        rows = end-start if operation == "summary" else (
+            (end-start+self.contract.block_tokens-1)//self.contract.block_tokens
+            * (self.contract.block_tokens//self.contract.ratio))
+        if memory.shape != (rows, self.contract.hidden_size) or not np.isfinite(memory).all():
+            raise RuntimeError(f"worker returned incomplete or nonfinite {operation} memory: "
+                               f"shape {memory.shape}, expected {(rows, self.contract.hidden_size)}")
+        return memory
 
     def generate(self, source, *, max_new_tokens, sampling=None):
+        from .sglang_hook import validate_payload
         allowed = {"temperature", "top_p", "top_k", "min_p", "presence_penalty",
                    "repetition_penalty", "sampling_seed", "json_schema"}
         if set(sampling or {}) - allowed:
             raise ValueError("unsupported sampling options")
         params = {"temperature": 0.0, **(sampling or {}), "max_new_tokens": max_new_tokens,
-                  "stop_token_ids": [self.contract.placeholder_id],
-                  "skip_special_tokens": False, "no_stop_trim": True}
-        memory = self._memory_fields(source)
-        custom = {"version": 1, "mode": "recover", **memory} if memory else None
-        result = self._request(source, params, custom=custom)
-        output = token_ids(result.get("output_ids"), "output_ids", empty=True)
+                  "stop_token_ids": [self.contract.placeholder_id], "skip_special_tokens": False,
+                  "no_stop_trim": True}
+        payload = {"mode": "recover", **self._memory(source)} if source.memory is not None else None
+        if payload:
+            validate_payload(payload, len(source.input_ids), self.contract.hidden_size)
+        result = self._request(source, params, payload)
         meta = result.get("meta_info", {})
-        return Generation(result.get("text", ""), list(output),
-                          {k: meta[k] for k in ("prompt_tokens", "completion_tokens", "cached_tokens")
-                           if k in meta}, meta.get("finish_reason"))
+        reason = meta.get("finish_reason")
+        if isinstance(reason, dict) and reason.get("type") in {"abort", "error"}:
+            raise RuntimeError("SGLang aborted generation")
+        return Generation(result.get("text", ""), list(token_ids(result.get("output_ids"),
+            "output_ids", empty=True)), {k: meta[k] for k in
+            ("prompt_tokens", "completion_tokens", "cached_tokens") if k in meta}, reason)
 
+    def attest(self):
+        return {"backend": "sglang", "context_limit": self.context_limit,
+                "identity": self.contract.identity, **self.info}
 
-def from_config_file(path: str | Path, **kwargs) -> SGLangBackend:
-    return SGLangBackend(config=json.loads(Path(path).read_text()), **kwargs)
+    def close(self):
+        with self.lock:
+            if self.closed:
+                return
+            self.closed = True
+            # The worker can have exited while a scheduler child still exists.
+            try:
+                os.killpg(self.process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                if self.process.is_alive():
+                    self.process.terminate()
+            self.process.join(15)
+            if self.process.is_alive():
+                try:
+                    os.killpg(self.process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    self.process.kill()
+                self.process.join(5)
+            self.pipe.close()

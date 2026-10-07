@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/sgl-project/sglang.git",
+  "commit": "f08726fd56c7ff6d8bd258f1545f98148fa4ef58",
+  "version": "0.5.13",
+  "files": {
+    "srt/model_executor/hook_manager.py": {
+      "before": "899bea28f874cb7a44b7d10fcff50814b6f99221e31fe4aabd073227f3c24073",
+      "after": "9f0b90f17eb0b09343ff6ceeb625328fbe34e693d6ebfa53b0f2e290fab87b2b",
+      "old": "        for module_name, module in matched:\n",
+      "new": "        # Remory: bind model-level resources before registering forward hooks.\n        setup_model = getattr(hook, \"setup_model\", None)\n        if setup_model is not None:\n            setup_model(model)\n\n        for module_name, module in matched:\n"
+    },
+    "srt/managers/scheduler_output_processor_mixin.py": {
+      "before": "4995ed355b0753a6687a719ffc25a4fcf292be0c75c6b08ef372912e5865abcf",
+      "after": "a013cc40f0887812f542fee88ac5dee32e54d4ddd3bdb7cf56f8e9939cc58542",
+      "old": "                        req.hidden_states.append(\n                            logits_output.hidden_states[\n                                hidden_state_offset : (\n                                    hidden_state_offset := hidden_state_offset\n                                    + len(req.origin_input_ids)\n",
+      "new": "                        # A Remory encoding returns memory rows, not one row\n                        # per source token. Partial leaves still produce 64 rows.\n                        packed = getattr(logits_output, \"remory_packed_hidden_states\", False)\n                        if packed and len(batch.reqs) != 1:\n                            raise RuntimeError(\"Remory encoding must be a singleton\")\n                        row_count = (logits_output.hidden_states.shape[0] if packed\n                                     else len(req.origin_input_ids))\n                        req.hidden_states.append(\n                            logits_output.hidden_states[\n                                hidden_state_offset : (\n                                    hidden_state_offset := hidden_state_offset\n                                    + row_count\n"
+    }
+  }
+}

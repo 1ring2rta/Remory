@@ -1,57 +1,151 @@
-import json
-import httpx
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
-from remory import Prepared
-from remory.backends.sglang import ABI, CAPABILITIES, HOOK, PARAM, SGLangBackend
+torch = pytest.importorskip("torch")
+pytest.importorskip("transformers")
+
+from remory import Contract, Prepared  # noqa: E402
+from remory.backends.sglang import SGLangBackend  # noqa: E402
+from remory.backends.sglang_hook import ResidualHook, validate_payload  # noqa: E402
 
 
-def config():
-    return {"compressor": {"target_hidden_size": 3, "max_depth": 4},
-            "residual": {"block_tokens": 8, "compression_ratio": 2, "memory_budget": 8},
-            "summary_contract": {"end_token_id": 2, "student_summary_before_ids": [10],
-                "student_summary_after_ids": [11], "student_memory_before_ids": [12], "student_memory_after_ids": [13]}}
+def encode_payload(**overrides):
+    return {"mode": "encode", "operation": "leaves", "start": 1, "end": 4,
+            "depth": 0, "block_depths": [], "summary": [[1., 2., 3., 4.]], **overrides}
 
 
-def server_info():
-    return {"request_capabilities": list(CAPABILITIES), "max_running_requests": 1,
-            "context_length": 4096, "model_path": "/actor", "forward_hooks": [
-                {"hook_factory": HOOK, "config": {"checkpoint": "/checkpoint", "residual_serving_abi": ABI}}]}
+def test_source_and_recursive_depth_validation():
+    validate_payload(encode_payload(), 4, 4, block=8)
+    for override in ({"end": 3}, {"summary": [[float("nan")]*4]},
+                     {"depth": True}, {"positions": [1], "memory": [[0.]*4]}):
+        with pytest.raises(ValueError):
+            validate_payload(encode_payload(**override), 4, 4, block=8)
+    recursive = encode_payload(operation="recursive_leaves", positions=[1, 2],
+                               memory=[[0.]*4]*2, block_depths=[1])
+    validate_payload(recursive, 4, 4, block=8)
+    with pytest.raises(ValueError, match="identify"):
+        validate_payload({**recursive, "block_depths": [0]}, 4, 4, block=8)
+    with pytest.raises(ValueError, match="exactly one block"):
+        validate_payload(encode_payload(operation="parent", depth=1), 4, 4, block=8)
 
 
-def test_real_abi_payload_and_cache_receipt():
+def test_backend_rejects_truncated_partial_leaf_and_preserves_overrides():
+    backend = SGLangBackend.__new__(SGLangBackend)
+    backend.contract = Contract(4, 8, 2, 8, 4, 2, (), (), (), (), "test")
     seen = []
-    def respond(request):
-        if request.method == "GET":
-            return httpx.Response(200, json=server_info())
-        payload = json.loads(request.content)
+    def request(source, sampling, payload):
         seen.append(payload)
-        assert payload["cache_policy"] == "bypass"
-        assert "custom_logit_processor" in payload
-        if payload.get("return_hidden_states"):
-            return httpx.Response(200, json={"meta_info": {"cache_policy": "bypass", "hidden_states": [[[1, 2, 3]]]}})
-        return httpx.Response(200, json={"text": "ok", "output_ids": [2], "meta_info": {"cache_policy": "bypass"}})
-    backend = SGLangBackend("http://worker", config(), server_checkpoint="/checkpoint", server_model="/actor",
-                            transport=httpx.MockTransport(respond))
-    encoded = backend.encode(Prepared((1, 3)), start=1, end=2, operation="summary")
-    np.testing.assert_array_equal(encoded, [[1, 2, 3]])
-    source = Prepared((1, 2, 8), (1,), encoded)
-    assert backend.generate(source, max_new_tokens=3).text == "ok"
-    custom = seen[-1]["sampling_params"]["custom_params"][PARAM]
-    assert custom["mode"] == "recover" and custom["memory_embeddings"] == [[1, 2, 3]]
-    assert custom["memory_positions"] == [1]
-    backend.close()
+        return {"meta_info": {"hidden_states": [[[1.]*4]*4]}}
+    backend._request = request
+    result = backend.encode(Prepared((1, 3, 4)), start=1, end=3, operation="leaves",
+                            summary=np.ones((1, 4)))
+    assert result.shape == (4, 4)  # More memory rows than the short source span.
+    backend._request = lambda *args: {"meta_info": {"hidden_states": [[[1.]*4]*2]}}
+    with pytest.raises(RuntimeError, match="incomplete"):
+        backend.encode(Prepared((1, 3, 4)), start=1, end=3, operation="leaves",
+                       summary=np.ones((1, 4)))
+    def generate(source, sampling, payload):
+        assert payload["positions"] == [1]
+        assert payload["memory"] == [[5.]*4]
+        assert sampling["stop_token_ids"] == [2]
+        return {"text": "ok", "output_ids": [2], "meta_info": {"completion_tokens": 1}}
+    backend._request = generate
+    assert backend.generate(Prepared((1, 2, 3), (1,), np.full((1, 4), 5)),
+                            max_new_tokens=1).text == "ok"
 
 
-def test_stock_server_and_missing_bypass_ack_are_rejected():
-    with pytest.raises(RuntimeError, match="lacks residual"):
-        SGLangBackend("http://worker", config(), server_checkpoint="/checkpoint", server_model="/actor",
-                      transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
-    def respond(request):
-        return httpx.Response(200, json=server_info() if request.method == "GET" else {"output_ids": [2], "meta_info": {}})
-    backend = SGLangBackend("http://worker", config(), server_checkpoint="/checkpoint", server_model="/actor",
-                            transport=httpx.MockTransport(respond))
-    with pytest.raises(RuntimeError, match="acknowledge"):
-        backend.generate(Prepared((1, 2), (1,), np.ones((1, 3))), max_new_tokens=2)
-    backend.close()
+class FusedLayer(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear = torch.nn.Linear(4, 4, bias=False)
+
+    def forward(self, hidden, residual):
+        total = hidden if residual is None else hidden + residual
+        return self.linear(total), total
+
+
+class Backbone(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.embed_tokens = torch.nn.Embedding(20, 4)
+        self.layers = torch.nn.ModuleList([FusedLayer() for _ in range(4)])
+        self.norm = torch.nn.LayerNorm(4)
+
+    def forward(self, ids):
+        hidden, residual = self.embed_tokens(ids), None
+        for layer in self.layers:
+            hidden, residual = layer(hidden, residual)
+        return self.norm(hidden + residual)
+
+
+class Logits(torch.nn.Module):
+    def forward(self, ids, hidden, head, batch):
+        return SimpleNamespace(hidden_states=hidden)
+
+
+class Actor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model, self.logits_processor = Backbone(), Logits()
+
+    def forward(self, input_ids, positions, forward_batch):
+        hidden = self.model(input_ids)
+        return self.logits_processor(input_ids, hidden, None, forward_batch)
+
+
+class Compressor(torch.nn.Module):
+    target_layer_ids, max_depth = (0, 2), 4
+    def __init__(self):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.ones(1))
+        self.observed = []
+
+    def forward(self, features, mask, **kwargs):
+        self.observed.append(features.clone())
+        assert kwargs["slot_token_lengths"].tolist() == [8]
+        rows = features[:, :, :4].mean(1, keepdim=True).expand(1, 4, 4).clone()
+        return SimpleNamespace(embeddings=rows, attention_mask=torch.ones(1, 4, dtype=torch.bool))
+
+
+def batch(payload, *, prefix=0, decode=False):
+    return SimpleNamespace(sampling_info=SimpleNamespace(custom_params=[{"remory": payload}]),
+        batch_size=1, is_prefill_only=payload["mode"] == "encode",
+        forward_mode=SimpleNamespace(is_decode=lambda: decode, is_extend=lambda: not decode),
+        extend_prefix_lens_cpu=[prefix], extend_seq_lens_cpu=[4])
+
+
+def test_hook_matches_fused_decoder_states_and_restores_per_request_state(monkeypatch):
+    torch.manual_seed(42)
+    actor, compressor = Actor(), Compressor()
+    config = {"compressor": {"target_hidden_size": 4},
+              "residual": {"block_tokens": 8, "compression_ratio": 2}}
+    monkeypatch.setattr("remory.models.load.load_compressor", lambda *a, **kw: (compressor, config))
+    hook = ResidualHook({"checkpoint": "unused"})
+    hook.setup_model(actor)
+    actor.logits_processor.register_forward_hook(hook)
+    ids = torch.tensor([1, 2, 3, 4])
+    # Independent decoder-state reconstruction, including each residual add.
+    total = actor.model.embed_tokens(ids)
+    states = []
+    for layer in actor.model.layers:
+        total = layer.linear(total) + total
+        states.append(total)
+    # SGLang invokes forward directly, while ordinary PyTorch uses __call__.
+    output = actor.forward(ids, None, batch(encode_payload()))
+    torch.testing.assert_close(compressor.observed[0][0], torch.cat([states[0][1:], states[2][1:]], -1))
+    assert output.hidden_states.shape == (4, 4) and output.remory_packed_hidden_states
+    assert hook.payload is None and not hook.captured
+    summary = actor(ids, None, batch(encode_payload(operation="summary")))
+    torch.testing.assert_close(summary.hidden_states, actor.model.norm(states[-1])[1:])
+    payload = {"mode": "recover", "positions": [1, 2], "memory": [[7.]*4, [8.]*4]}
+    observed = []
+    actor.model.layers[0].register_forward_pre_hook(lambda m, a: observed.append(a[0].clone()))
+    actor(ids, None, batch(payload))
+    torch.testing.assert_close(observed[-1][1:3], torch.tensor([[7.]*4, [8.]*4]))
+    actor(ids, None, batch(payload, decode=True))
+    torch.testing.assert_close(observed[-1], actor.model.embed_tokens(ids))
+    with pytest.raises(RuntimeError, match="prefix reuse"):
+        actor(ids, None, batch(encode_payload(), prefix=1))
+    assert hook.payload is None

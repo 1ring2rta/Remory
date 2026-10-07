@@ -1,147 +1,109 @@
 # Remory
 
-**Compaction with residual memory, at the inference and harness boundary.**
+**Compaction with residual memory.** Keep a text summary, encode soft memory from
+the history it replaces, and attach that memory when the agent continues.
 
-[Weights](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B) ·
 [Paper](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B/blob/main/paper/remory.pdf) ·
-[API](docs/api.md) · [Harness integration](docs/harnesses.md)
+[Weights](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B) ·
+[API](docs/api.md) · [Codex example](docs/harnesses.md)
 
-An agent keeps its tools, conversation format, and compaction policy. Remory keeps
-the information left behind by its text summary as continuous residual memory,
-then injects that memory into the actor's input embeddings on later requests.
+## 1. Deploy
 
-This repository contains the inference SDK, compressor loader, backend adapters,
-an HTTP sidecar, and small harness integration modules. It contains no training
-runner, dataset pipeline, or benchmark harness.
-
-```text
-your harness                        Remory                         actor
-native history + new summary ─────► compact ─────► residual encoding
-save summary + memory handle ◄───── checkpoint
-handle + native continuation ─────► generate ────► embedding injection
-execute returned tool calls ◄────── generated tokens
-```
-
-## Two integration points
-
-| Interface | When to call it | Result |
-| --- | --- | --- |
-| `compact` | Before replacing old history with a summary | Durable, immutable memory handle |
-| `generate` | To continue from a saved memory handle | Generated text, token IDs, and usage |
-
-`generate` restores the saved memory and assembles the actor's input internally.
-
-On repeated compactions, the old summary and old residual are re-encoded together
-with the new history, conditioned on the **new** summary. A failed operation does
-not publish a checkpoint or modify an existing one. History is never silently
-truncated. The caller commits its transcript change only after `compact` succeeds.
-
-## Install
-
-Python 3.11 or later:
+On a Linux x86_64 GPU machine with Python 3.11+, `git`, and a C++ compiler:
 
 ```bash
 git clone https://github.com/1ring2rta/Remory.git
 cd Remory
-pip install -e '.[server,transformers]'
+./deploy.sh
 ```
 
-The Transformers reference backend loads the released Qwen actor and residual
-compressor directly. It requires enough device memory for both models and the
-requested context; it is an unbatched reference implementation. The default actor
-is **Qwen3.8-27B**, not the model normally bundled with your coding client.
+This installs a private environment, a pinned SGLang runtime with the two required
+patches, and CUDA compiler components. It downloads the released Qwen3.8-27B actor
+and Remory weights, then serves **http://127.0.0.1:8421**. First startup includes
+large downloads and kernel compilation; later starts reuse them. No other project
+checkout or preconfigured SGLang server is needed.
+
+Use one NVIDIA GPU with enough memory for the 27B actor, 1.94B compressor, and
+context. Budget at least 80 GB of GPU memory and 100 GB of disk for the initial
+installation and weights. The driver must support CUDA 12.8, or CUDA 13.0 for
+SM 10.3+ GPUs. This release serves text on one GPU, one request at a time.
+See [deployment options and tested hardware](docs/backends.md).
+
+Runtime files live in `.remory/`: the environment, API key, and persistent memory
+database. Keep this directory to resume sessions. Model downloads use the usual
+Hugging Face cache. Stop the service with Ctrl-C.
+
+## 2. Run a complete example
+
+In a second terminal, from the repository root:
 
 ```bash
-export REMORY_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-remory serve --backend transformers --device cuda:0 --store ./remory.sqlite
+.remory/venv/bin/python examples/quickstart.py
 ```
 
-The loader pins the compressor release and actor revision and verifies compressor
-checksums. It downloads safetensors and metadata, without executing code from the
-model repository. Use `--checkpoint /path/to/snapshot --actor /path/to/actor` for
-local snapshots of those same weights.
+The example supplies a short conversation and a summary, compresses the removed
+history, then asks the actor to continue with the saved residual memory.
+It prints the memory size and the actor's answer. No input file is needed.
 
-For an existing residual-enabled SGLang worker, install `.[server]` and see
-[the SGLang instructions](docs/backends.md). The client checks capabilities,
-checkpoint identity, context limits, and cache-bypass acknowledgments. The
-required worker extensions are not part of stock SGLang.
+## 3. Connect your harness
 
-## Use it from a harness
+There are two public operations:
 
-```python
-from remory.client import Client
-
-with Client("http://127.0.0.1:8421", session_id="my-session", api_key=api_key) as memory:
-    checkpoint = memory.compact(
-        prefix_ids=native_system_tools_and_original_task_ids,
-        history_ids=removed_history_ids,
-        summary_ids=new_summary_ids,
-    )
-    # Persist checkpoint["handle"] with the summary, then replace old history.
-    result = memory.generate(
-        handle=checkpoint["handle"],
-        continuation_ids=kept_tail_and_next_request_ids,
-        max_new_tokens=1024,
-    )
-```
-
-These are **actor-native token IDs**. Retain the original tool definitions,
-tool-call IDs, results, and chat-template boundaries. `Harness` and `ChatTemplate`
-in [`remory.adapters`](src/remory/adapters/harness.py) provide a message-level
-wrapper for a tokenizer's native template. See [the executable client example](examples/client.py).
-
-For another inference engine, implement the two operations in
-[`Backend`](src/remory/types.py): encode source/summary states, and generate with
-embedding overrides. Remory assembles the token IDs and sparse memory overrides
-before calling the backend.
-
-## Harness support
-
-| Harness | Included seam | Integration required |
+| Operation | Input | Output |
 | --- | --- | --- |
-| Codex | [Responses compaction carrier](integrations/codex/bridge.mjs) | Wire into a custom Responses provider's compact and generation paths |
-| Claude Code | [Compaction lifecycle bridge](integrations/claude-code/bridge.mjs) | Capture native source in a residual-aware gateway; persist PostCompact result there |
-| `opencode-ai/opencode` | [Go client](integrations/opencode/remory.go) | Connect `agent.Summarize` and the model provider; persist handles across the new continuation session |
-| Pi | [`session_before_compact` extension factory](integrations/pi/extension.mjs) | Supply native rendering/summary callback and a residual model provider |
+| `compact` | Native history tokens + new summary | Persistent memory handle |
+| `generate` | Memory handle + native continuation tokens | Actor output |
 
-These are small integration modules, **not four complete replacement providers**.
-The sidecar implements `/v1/compact` and `/v1/generate`; it does not
-implement the full OpenAI Responses or Anthropic Messages APIs. A client base-URL
-setting alone is therefore insufficient. [The integration guide](docs/harnesses.md)
-identifies the required hooks and the state each provider must carry.
-
-Residual memory requires an actor that accepts hidden-state/embedding injection.
-Closed Claude/GPT APIs cannot consume these tensors. Using Claude Code or Codex
-as the harness with a supported Qwen backend is a separate choice from using
-Anthropic's or OpenAI's hosted model.
-
-## Checks
-
-```bash
-pip install -e '.[test]'
-pytest -q
-# Also runs a real tiny Qwen + residual-compressor integration when torch and
-# transformers are installed. No large weight download is needed for tests.
-node --test integrations/test.mjs
-cd integrations/opencode && go test ./...
+```text
+history + summary ── compact ──► summary + residual memory
+                                       │
+new messages ───────────────── generate ──► answer / tool calls
 ```
 
-Tests cover recursive compaction, exact source coverage, sparse memory insertion,
-failure atomicity, restart/resume, session scoping, and backend protocol contracts.
-The individual coding CLIs have not been end-to-end certified with this release.
-An optional GitHub Actions workflow is provided as [a template](docs/ci-tests.yml);
-copy it to `.github/workflows/tests.yml` with workflow-authorized credentials to enable CI.
+The harness creates the summary and executes tools. Remory owns memory encoding,
+storage, and injection into the actor. Save the returned handle with the summary
+before discarding history. On the next compaction, supply that handle as `previous`.
+The same two operations handle repeated compactions and session resume.
 
-The current ABI is text-only. The sidecar stores float32 tensors in SQLite and
-transports them as JSON to external backends; this favors portability over
-throughput. It is designed for one trusted operator's sessions, protected by one
-API key. Keep the database while resuming or branching sessions, and delete
-unneeded handles explicitly. See [state and API semantics](docs/api.md).
+[The Codex example](docs/harnesses.md) shows where to connect both operations in a
+custom Responses provider. It is the only harness-specific integration included.
+The service exposes Remory's token API; a Codex base-URL change alone does not
+supply the provider's rendering, tool parsing, and streaming logic. The example
+uses the released Qwen actor; residual tensors require access to actor embeddings.
 
-## Attribution
+For your own client, see [the Python client example](examples/client.py) and
+[the request formats](docs/api.md). Use the actor's native tokenizer and preserve
+its tool-call IDs, results, and chat-template boundaries.
+
+## Read the code
+
+Follow the same path as a request:
+
+| File | Purpose |
+| --- | --- |
+| [`deploy.sh`](deploy.sh) | Install and start the service |
+| [`server.py`](src/remory/server.py) | The two HTTP operations |
+| [`engine.py`](src/remory/engine.py) | Compact, save, restore, and generate |
+| [`sglang.py`](src/remory/backends/sglang.py) | Send work to the managed SGLang process |
+| [`sglang_hook.py`](src/remory/backends/sglang_hook.py) | Capture actor states and inject soft tokens |
+| [`codex/bridge.mjs`](integrations/codex/bridge.mjs) | Carry memory across Codex compaction |
+
+`models/` contains the released compressor; `pyramid.py` handles memory budgets;
+`store.py` persists immutable checkpoints in SQLite. Training and evaluation
+pipelines are outside this repository.
+
+## Development
+
+```bash
+python -m pip install -e '.[test]'
+pytest -q
+node --test integrations/test.mjs
+```
+
+With `.[transformers]` installed, the tests also exercise tiny real Qwen models
+and the SGLang hook. See [validation](docs/validation.md) for the tested scope and
+[the optional CI template](docs/ci-tests.yml).
 
 *Remory: Learning Residual Memory for Context Compaction.* Hanchen Xia, Baoyou
 Chen, Yutang Ge, Naihao Deng, Senqiao Yang, Zilong Dong, Weihao Yuan, and Siyu Zhu.
-
-Code is MIT licensed. Model weight terms remain those of their respective model
-repositories. See [third-party notices](THIRD_PARTY_NOTICES.md).
+Code: MIT. Model licenses are separate. [Third-party notices](THIRD_PARTY_NOTICES.md).

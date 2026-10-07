@@ -5,6 +5,7 @@ from remory.types import digest
 
 class Tokenizer:
     def apply_chat_template(self, messages, *, tools, tokenize, add_generation_prompt, **kwargs):
+        assert kwargs["return_dict"] is False
         return [len(m["content"]) for m in messages] + ([99] if add_generation_prompt else [])
 
     def encode(self, text, **kwargs):

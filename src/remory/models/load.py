@@ -13,7 +13,7 @@ WEIGHTS = "mocoV3/Remory-Qwen3.8-27B"
 REVISION = "42f1e7011a75989909d1a28673e6f206f1dee791"
 
 
-def load_compressor(checkpoint: str = WEIGHTS, *, revision=REVISION, device="cpu", dtype=None):
+def resolve_checkpoint(checkpoint: str = WEIGHTS, *, revision=REVISION):
     path = Path(checkpoint)
     if not path.is_dir():
         from huggingface_hub import snapshot_download
@@ -24,6 +24,23 @@ def load_compressor(checkpoint: str = WEIGHTS, *, revision=REVISION, device="cpu
     canonical = json.dumps(config, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     if hashlib.sha256(canonical.encode()).hexdigest() != manifest["config_sha256"]:
         raise ValueError("checkpoint configuration checksum mismatch")
+    return path.resolve(), config
+
+
+def resolve_actor(config, actor_path=None):
+    if actor_path is not None:
+        path = Path(actor_path).expanduser().resolve()
+        if not (path / "config.json").is_file():
+            raise ValueError("--actor must name a local actor snapshot")
+        return path
+    from huggingface_hub import snapshot_download
+    return Path(snapshot_download(config["target_model"], revision=config["target_revision"],
+        allow_patterns=["*.json", "*.safetensors", "*.jinja", "*.txt", "*.model"]))
+
+
+def load_compressor(checkpoint: str = WEIGHTS, *, revision=REVISION, device="cpu", dtype=None):
+    path, config = resolve_checkpoint(checkpoint, revision=revision)
+    manifest = json.loads((path / "manifest.json").read_text())
     with (path / "model.safetensors").open("rb") as stream:
         checksum = hashlib.file_digest(stream, "sha256").hexdigest()
     if checksum != manifest["safetensors_sha256"]:

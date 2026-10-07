@@ -2,22 +2,19 @@ import argparse
 import json
 import os
 
-from .backends.sglang import from_config_file
 from .engine import Remory
 from .store import MemoryStore
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Remory residual inference sidecar")
+    parser = argparse.ArgumentParser(description="Serve compaction with residual memory")
     parser.add_argument("command", choices=["serve", "doctor"])
     parser.add_argument("--backend", choices=["sglang", "transformers"], default="sglang")
-    parser.add_argument("--backend-url")
-    parser.add_argument("--config", help="config.json matching the worker checkpoint")
-    parser.add_argument("--server-checkpoint", help="checkpoint path as seen by worker")
-    parser.add_argument("--server-model", help="actor path/ID as seen by worker")
     parser.add_argument("--checkpoint", default="mocoV3/Remory-Qwen3.8-27B")
     parser.add_argument("--actor", help="optional local actor snapshot")
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--gpu", type=int, default=0, help="SGLang GPU index in CUDA_VISIBLE_DEVICES")
+    parser.add_argument("--memory-fraction", type=float, default=0.8)
     parser.add_argument("--context-limit", type=int, default=32768)
     parser.add_argument("--store", default="remory.sqlite")
     parser.add_argument("--host", default="127.0.0.1")
@@ -26,11 +23,9 @@ def main():
     if args.command == "serve" and not os.environ.get("REMORY_API_KEY"):
         parser.error("set REMORY_API_KEY for the sidecar (a single trusted operator's sessions)")
     if args.backend == "sglang":
-        if not all([args.config, args.backend_url, args.server_checkpoint, args.server_model]):
-            parser.error("sglang requires --config, --backend-url, --server-checkpoint, --server-model")
-        backend = from_config_file(args.config, base_url=args.backend_url,
-                               server_checkpoint=args.server_checkpoint, server_model=args.server_model,
-                               api_key=os.environ.get("REMORY_BACKEND_API_KEY"))
+        from .backends.sglang import SGLangBackend
+        backend = SGLangBackend.from_pretrained(args.checkpoint, actor_path=args.actor,
+            gpu=args.gpu, context_limit=args.context_limit, memory_fraction=args.memory_fraction)
     else:
         from .backends.transformers import TransformersBackend
         backend = TransformersBackend.from_pretrained(args.checkpoint, actor_path=args.actor,

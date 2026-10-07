@@ -41,7 +41,8 @@ class ChatTemplate:
             if m.get("content") is not None and not isinstance(m["content"], str):
                 raise ValueError("normalize text blocks before rendering; images are unsupported")
         return list(self.tokenizer.apply_chat_template(messages, tools=self.tools,
-            tokenize=True, add_generation_prompt=generation, **self.template_kwargs))
+            tokenize=True, return_dict=False, add_generation_prompt=generation,
+            **self.template_kwargs))
 
     def split(self, prefix_messages, messages, *, generation=False):
         prefix = self._render(prefix_messages)
