@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+dist/
+build/
+*.sqlite*
+*.db
+*.npy
+*.safetensors
+*.pt
+.env
+node_modules/
