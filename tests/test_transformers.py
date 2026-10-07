@@ -16,13 +16,35 @@ class Decoder:
         return " ".join(map(str, ids))
 
 
-def test_real_tiny_actor_compressor_recursive_encode_and_generate(tmp_path):
+@pytest.mark.parametrize("family", ["qwen3", "qwen3_5_multimodal"])
+def test_real_tiny_actor_compressor_recursive_encode_and_generate(tmp_path, monkeypatch, family):
     torch.set_num_threads(2)
     torch.manual_seed(7)
     config = Qwen3Config(vocab_size=100, hidden_size=16, intermediate_size=32,
         num_hidden_layers=4, num_attention_heads=2, num_key_value_heads=1, head_dim=8,
         max_position_embeddings=256, attention_dropout=0.0)
     actor = Qwen3ForCausalLM(config).eval()
+    if family == "qwen3_5_multimodal":
+        from transformers.models.qwen3_5 import modeling_qwen3_5 as qwen35
+        from transformers.models.qwen3_5.configuration_qwen3_5 import (
+            Qwen3_5Config, Qwen3_5TextConfig, Qwen3_5VisionConfig,
+        )
+        # Use HF's CPU reference kernels even if the developer environment has
+        # optional CUDA-only kernels installed. No model equations are mocked.
+        for name in ("causal_conv1d_fn", "causal_conv1d_update", "chunk_gated_delta_rule",
+                     "fused_recurrent_gated_delta_rule", "FusedRMSNormGated"):
+            monkeypatch.setattr(qwen35, name, None)
+        text = Qwen3_5TextConfig(vocab_size=100, hidden_size=16, intermediate_size=32,
+            num_hidden_layers=4, num_attention_heads=2, num_key_value_heads=1, head_dim=8,
+            linear_key_head_dim=8, linear_value_head_dim=8, linear_num_key_heads=2,
+            linear_num_value_heads=2, max_position_embeddings=256,
+            layer_types=["linear_attention", "full_attention"] * 2,
+            rope_parameters={"rope_type": "default", "rope_theta": 10000,
+                             "partial_rotary_factor": 1.0, "mrope_section": [1, 1, 2]})
+        vision = Qwen3_5VisionConfig(depth=1, hidden_size=16, intermediate_size=32,
+            num_heads=2, out_hidden_size=16, num_position_embeddings=16)
+        actor = qwen35.Qwen3_5ForConditionalGeneration(Qwen3_5Config(
+            text_config=text.to_dict(), vision_config=vision.to_dict())).eval()
     draft = Qwen3Config(vocab_size=100, hidden_size=16, intermediate_size=32,
         num_hidden_layers=2, num_attention_heads=2, num_key_value_heads=1, head_dim=8,
         max_position_embeddings=256, layer_types=["sliding_attention", "full_attention"], sliding_window=8)
@@ -37,7 +59,7 @@ def test_real_tiny_actor_compressor_recursive_encode_and_generate(tmp_path):
     backend.encode(source, start=1, end=4, operation="leaves", summary=summary)
     hook.remove()
     with torch.inference_mode():
-        native = actor.model(input_ids=torch.tensor([source.input_ids]), output_hidden_states=True)
+        native = backend.backbone(input_ids=torch.tensor([source.input_ids]), output_hidden_states=True)
     np.testing.assert_allclose(summary, native.last_hidden_state[0, 2:4].numpy(), rtol=1e-5, atol=1e-6)
     expected = torch.cat([native.hidden_states[1][:, 1:4], native.hidden_states[2][:, 1:4]], -1)
     torch.testing.assert_close(observed[0], expected)

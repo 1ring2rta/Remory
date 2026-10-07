@@ -2,8 +2,9 @@
 
 Validated locally on 2026-10-07:
 
-- 19 Python tests: engine, durable state, HTTP API, SGLang protocol, message
-  template boundary, and a real tiny Qwen actor/residual compressor.
+- 20 Python tests: engine, durable state, HTTP API, SGLang protocol, message
+  template boundary, and real tiny Qwen3 and Qwen3.5-family hybrid actors with
+  the residual compressor.
 - 4 JavaScript tests: HTTP transport, Codex opaque compaction carrier, Pi
   cancellation/commit behavior, and Claude Code gateway lifecycle bridge.
 - 2 Go tests: native source/continuation serialization and backend failure handling.
@@ -14,9 +15,11 @@ Validated locally on 2026-10-07:
   summary positions, and a 1024-position virtual slot allocation produced finite
   output of shape `[1, 64, 5120]`.
 
-The tiny model test compares selected source features and normalized summary
+The tiny model tests compare selected source features and normalized summary
 states with the actor's native outputs, performs two consecutive compactions,
-checks sparse embedding insertion, and generates continuation tokens.
+check sparse embedding insertion, and generate continuation tokens. The hybrid
+test uses the same Qwen3.5 multimodal model class as the released actor, with
+small dimensions and CPU reference kernels; it exercises text input only.
 
 No full 27B actor session was launched for this release validation. A live SGLang
 worker and interactive Codex, Claude Code, OpenCode, and Pi sessions were not
