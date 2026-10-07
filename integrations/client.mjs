@@ -17,9 +17,6 @@ export class RemoryClient {
     return this.request("/v1/compact", { prefix_ids: prefixIds, history_ids: historyIds,
       summary_ids: summaryIds, previous }, signal);
   }
-  prepare({ handle, continuationIds = [] }, signal) {
-    return this.request("/v1/prepare", { handle, continuation_ids: continuationIds }, signal);
-  }
   generate({ handle = null, inputIds = null, continuationIds = [], maxNewTokens = 1024,
     sampling = null }, signal) {
     return this.request("/v1/generate", { handle, input_ids: inputIds,

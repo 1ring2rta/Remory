@@ -27,9 +27,6 @@ class Client:
         return self._post("v1/compact", dict(prefix_ids=list(prefix_ids), history_ids=list(history_ids),
                                            summary_ids=list(summary_ids), previous=previous))
 
-    def prepare(self, *, handle, continuation_ids=()):
-        return self._post("v1/prepare", dict(handle=handle, continuation_ids=list(continuation_ids)))
-
     def generate(self, *, max_new_tokens=1024, handle=None, input_ids=None,
                  continuation_ids=(), sampling=None):
         return self._post("v1/generate", dict(handle=handle, input_ids=input_ids,

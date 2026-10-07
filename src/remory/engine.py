@@ -29,7 +29,7 @@ class Remory:
             raise ValueError("backend returned invalid memory shape or nonfinite values")
         return result
 
-    def prepare(self, *, owner: str, handle: str, continuation_ids=()) -> Prepared:
+    def _prepare(self, *, owner: str, handle: str, continuation_ids=()) -> Prepared:
         """Restore P + summary + soft memory + the exact native continuation IDs.
 
         The placeholder IDs MUST be accompanied by the embedding overrides.
@@ -53,7 +53,7 @@ class Remory:
         ONLY the new span since that checkpoint (including any previously kept
         tail now being removed). The old summary + soft rows are re-encoded,
         conditioned on the NEW summary. Original prefix IDs must stay identical.
-        Retained recent messages belong in the subsequent prepare continuation.
+        Retained recent messages belong in the subsequent generate continuation.
         """
         self.store._key(owner)
         prefix = token_ids(prefix_ids, "prefix_ids")
@@ -65,7 +65,7 @@ class Remory:
             self._check_memory(old)
             if old.prefix_ids != prefix:
                 raise ValueError("original system/tools/task prefix changed across compaction")
-            source = self.prepare(owner=owner, handle=previous, continuation_ids=history)
+            source = self._prepare(owner=owner, handle=previous, continuation_ids=history)
         else:
             source = Prepared(prefix + history)
         summary_start = len(prefix) + len(c.summary_before)
@@ -121,7 +121,7 @@ class Remory:
         if handle:
             if input_ids is not None:
                 raise ValueError("use continuation_ids with a handle, not full input_ids")
-            source = self.prepare(owner=owner, handle=handle, continuation_ids=continuation_ids)
+            source = self._prepare(owner=owner, handle=handle, continuation_ids=continuation_ids)
         else:
             self.store._key(owner)
             if continuation_ids:

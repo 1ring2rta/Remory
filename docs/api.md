@@ -19,7 +19,7 @@ binding is `127.0.0.1:8421`. FastAPI exposes an OpenAPI schema at `/openapi.json
 The numbers above are illustrative, not a Qwen prompt. Supply IDs from the exact
 actor tokenizer and native chat template. `prefix_ids` contains the immutable
 system/tools/original-task prefix. `history_ids` is the span being removed. Keep
-recent messages outside that span and append them during `prepare`/`generate`.
+recent messages outside that span and append them during `generate`.
 Do not cut across an outstanding tool call/result boundary.
 
 Remory does not generate the summary in this endpoint. The harness supplies its
@@ -45,20 +45,6 @@ chronological pyramid spans, and logical depths. Checkpoint embedding depth
 saturates at its configured maximum; logical depth remains recorded exactly.
 An impossible budget raises an error rather than dropping source tokens.
 
-## `POST /v1/prepare`
-
-Input: `{ "handle": "rm_…", "continuation_ids": [...] }`.
-
-Returns `input_ids`, `memory_positions`, `memory_embeddings`, and `slot_depths`.
-The token stream is the saved native prefix, summary envelope, memory envelope,
-then the exact supplied continuation. Scatter each memory row into the actor's
-input embedding at the corresponding position **before** prefill. Placeholder
-token IDs alone do not contain memory. Avoid ordinary token-prefix cache reuse
-unless the backend's cache identity also includes the memory content.
-
-Use `prepare` if your provider owns generation. Do not decode its placeholders
-to text and send that text to an ordinary LLM API.
-
 ## `POST /v1/generate`
 
 ```json
@@ -70,7 +56,9 @@ to text and send that text to an ordinary LLM API.
 }
 ```
 
-Remory restores and injects memory through its backend. The response contains
+Remory assembles the saved native prefix, summary envelope, memory envelope, and
+supplied continuation internally. Its backend injects residual embeddings before
+actor prefill and generates the continuation. The response contains
 `text`, `output_ids`, `usage`, and `finish_reason`. It is not a Chat Completions
 response. The harness/provider remains responsible for parsing native tool calls,
 executing tools, and formatting their results. Before the first compaction, omit

@@ -21,11 +21,6 @@ class CompactRequest(Request):
     previous: str | None = None
 
 
-class PrepareRequest(Request):
-    handle: str
-    continuation_ids: list[StrictInt] = Field(default_factory=list)
-
-
 class GenerateRequest(Request):
     handle: str | None = None
     input_ids: list[StrictInt] | None = None
@@ -68,14 +63,6 @@ def create_app(engine: Remory, *, api_key: str) -> FastAPI:
         memory = call(engine.compact, owner=owner, **request.model_dump())
         return {"handle": memory.handle, "summary_ids": list(memory.summary_ids),
                 "receipt": memory.receipt}
-
-    @app.post("/v1/prepare")
-    def prepare(request: PrepareRequest, owner: str = Depends(authorize)):
-        prepared = call(engine.prepare, owner=owner, **request.model_dump())
-        return {"input_ids": list(prepared.input_ids),
-                "memory_positions": list(prepared.memory_positions),
-                "memory_embeddings": prepared.memory.tolist(),
-                "slot_depths": list(prepared.slot_depths)}
 
     @app.post("/v1/generate")
     def generate(request: GenerateRequest, owner: str = Depends(authorize)):

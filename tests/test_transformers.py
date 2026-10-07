@@ -67,7 +67,7 @@ def test_real_tiny_actor_compressor_recursive_encode_and_generate(tmp_path, monk
     first = engine.compact(owner="a", prefix_ids=[1], history_ids=list(range(20, 40)), summary_ids=[50, 51])
     second = engine.compact(owner="a", prefix_ids=[1], history_ids=[60, 61], summary_ids=[52], previous=first.handle)
     assert np.isfinite(second.embeddings).all()
-    prepared = engine.prepare(owner="a", handle=second.handle, continuation_ids=[70])
+    prepared = engine._prepare(owner="a", handle=second.handle, continuation_ids=[70])
     with torch.inference_mode():
         actual = backend._embed(prepared)[0, list(prepared.memory_positions)].numpy()
     np.testing.assert_array_equal(actual, second.embeddings)

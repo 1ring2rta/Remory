@@ -24,7 +24,8 @@ def test_pyramid_covers_every_real_token():
 def test_recursive_compaction_reconditions_old_memory(runtime):
     first = compact(runtime)
     assert first.embeddings.shape == (8, 3)
-    restored = runtime.prepare(owner="session-a", handle=first.handle, continuation_ids=[70, 71])
+    runtime.generate(owner="session-a", handle=first.handle, continuation_ids=[70, 71], max_new_tokens=5)
+    restored = runtime.backend.calls[-1][0]
     assert restored.input_ids[-2:] == (70, 71)
     assert [restored.input_ids[p] for p in restored.memory_positions] == [2] * 8
     old_rows = first.embeddings.copy()
@@ -54,12 +55,13 @@ def test_failure_does_not_commit_or_delete_history(runtime):
 def test_store_survives_restart_and_owner_mismatch(runtime):
     memory = compact(runtime)
     restarted = Remory(runtime.backend, MemoryStore(runtime.store.path))
-    assert restarted.prepare(owner="session-a", handle=memory.handle).memory.shape == (8, 3)
+    restarted.generate(owner="session-a", handle=memory.handle, max_new_tokens=5)
+    assert runtime.backend.calls[-1][0].memory.shape == (8, 3)
     with pytest.raises(KeyError):
-        restarted.prepare(owner="session-b", handle=memory.handle)
+        restarted.generate(owner="session-b", handle=memory.handle, max_new_tokens=5)
     runtime.contract = replace(runtime.contract, identity="other-checkpoint")
     with pytest.raises(ValueError, match="different model"):
-        runtime.prepare(owner="session-a", handle=memory.handle)
+        runtime.generate(owner="session-a", handle=memory.handle, max_new_tokens=5)
 
 
 def test_reject_changed_prefix_and_context_overflow(runtime):

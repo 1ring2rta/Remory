@@ -1,4 +1,4 @@
-"""Three integration points, leaving tools and transcript ownership in the harness."""
+"""Compaction and generation, leaving tools and transcript ownership in the harness."""
 from dataclasses import asdict, dataclass
 import re
 from ..types import digest
@@ -76,11 +76,6 @@ class Harness:
         if digest(prefix) != checkpoint.prefix_sha256:
             raise ValueError("system/tools/task prefix changed since compaction")
         return tail
-
-    def before_generate(self, *, checkpoint: Checkpoint, prefix_messages, messages):
-        """For a provider that injects embeddings itself; returns tokens + overrides."""
-        tail = self._tail(checkpoint, prefix_messages, messages)
-        return self.client.prepare(handle=checkpoint.handle, continuation_ids=tail)
 
     def generate(self, *, checkpoint: Checkpoint, prefix_messages, messages,
                  max_new_tokens=1024, sampling=None):

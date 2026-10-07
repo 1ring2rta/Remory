@@ -22,13 +22,14 @@ handle + native continuation ─────► generate ────► embeddi
 execute returned tool calls ◄────── generated tokens
 ```
 
-## Three integration points
+## Two integration points
 
 | Interface | When to call it | Result |
 | --- | --- | --- |
 | `compact` | Before replacing old history with a summary | Durable, immutable memory handle |
-| `prepare` | When your provider owns actor execution | Native token IDs and sparse embedding overrides |
-| `generate` | When Remory owns actor execution | Generated text, token IDs, and usage |
+| `generate` | To continue from a saved memory handle | Generated text, token IDs, and usage |
+
+`generate` restores the saved memory and assembles the actor's input internally.
 
 On repeated compactions, the old summary and old residual are re-encoded together
 with the new history, conditioned on the **new** summary. A failed operation does
@@ -91,7 +92,8 @@ wrapper for a tokenizer's native template. See [the executable client example](e
 
 For another inference engine, implement the two operations in
 [`Backend`](src/remory/types.py): encode source/summary states, and generate with
-embedding overrides. `prepare` exposes the exact inputs for the second operation.
+embedding overrides. Remory assembles the token IDs and sparse memory overrides
+before calling the backend.
 
 ## Harness support
 
@@ -103,7 +105,7 @@ embedding overrides. `prepare` exposes the exact inputs for the second operation
 | Pi | [`session_before_compact` extension factory](integrations/pi/extension.mjs) | Supply native rendering/summary callback and a residual model provider |
 
 These are small integration modules, **not four complete replacement providers**.
-The sidecar implements `/v1/compact`, `/v1/prepare`, and `/v1/generate`; it does not
+The sidecar implements `/v1/compact` and `/v1/generate`; it does not
 implement the full OpenAI Responses or Anthropic Messages APIs. A client base-URL
 setting alone is therefore insufficient. [The integration guide](docs/harnesses.md)
 identifies the required hooks and the state each provider must carry.
