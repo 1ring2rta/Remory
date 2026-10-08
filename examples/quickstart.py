@@ -1,7 +1,6 @@
 """Run one compaction and continue from its memory with the deployed Qwen actor."""
 import argparse
 import json
-import os
 from pathlib import Path
 
 from transformers import AutoTokenizer
@@ -14,12 +13,10 @@ from remory.models.load import resolve_checkpoint, resolve_actor
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8421")
-    parser.add_argument("--runtime-dir", type=Path, default=Path(".remory"))
     parser.add_argument("--checkpoint", default="mocoV3/Remory-Qwen3.8-27B")
     parser.add_argument("--actor", help="same local actor snapshot used by the server")
     parser.add_argument("--write-input", type=Path, help="also save the tokenized input for the Codex example")
     args = parser.parse_args()
-    key = os.environ.get("REMORY_API_KEY") or (args.runtime_dir / "api-key").read_text().strip()
     _, config = resolve_checkpoint(args.checkpoint)
     tokenizer = AutoTokenizer.from_pretrained(resolve_actor(config, args.actor))
     codec = ChatTemplate(tokenizer, template_kwargs={"enable_thinking": False})
@@ -43,7 +40,7 @@ def main():
                    summary_ids=codec.summary(summary), continuation_ids=tail)
     if args.write_input:
         args.write_input.write_text(json.dumps(request) + "\n")
-    with Client(args.url, session_id="quickstart", api_key=key) as client:
+    with Client(args.url, session_id="quickstart") as client:
         checkpoint = client.compact(prefix_ids=prefix_ids, history_ids=history_ids,
                                     summary_ids=request["summary_ids"])
         print(f"Compacted {len(history_ids)} history tokens into "

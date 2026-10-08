@@ -1,9 +1,9 @@
 /** Token-level sidecar client for Node >= 18 (also works with browser fetch). */
 export class RemoryClient {
-  constructor({ url, apiKey, sessionId, fetchImpl = fetch }) {
+  constructor({ url, sessionId, fetchImpl = fetch }) {
     this.url = url.replace(/\/$/, "");
     this.fetch = fetchImpl;
-    this.headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`,
+    this.headers = { "Content-Type": "application/json",
       "X-Remory-Session": sessionId };
   }
   async request(path, body, signal) {

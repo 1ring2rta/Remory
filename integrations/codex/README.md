@@ -16,7 +16,7 @@ node integrations/codex/example.mjs /tmp/remory-input.json
 
 The Python example renders a conversation with the Qwen tokenizer. The JavaScript
 example compacts it, saves a Responses compaction item, and passes that item into
-the next generation. Use `REMORY_URL`, `REMORY_API_KEY`, and `REMORY_SESSION` to
+the next generation. Use `REMORY_URL` and `REMORY_SESSION` to
 configure the JavaScript client.
 
 ## Provider integration
@@ -28,8 +28,7 @@ configure the JavaScript client.
 import { RemoryClient } from "../client.mjs";
 import { compactResponse, generateFromItems } from "./bridge.mjs";
 
-const client = new RemoryClient({ url: "http://127.0.0.1:8421",
-  apiKey: process.env.REMORY_API_KEY, sessionId });
+const client = new RemoryClient({ url: "http://127.0.0.1:8421", sessionId });
 
 // In POST /responses/compact, after generating the new summary:
 const compacted = await compactResponse(client, {

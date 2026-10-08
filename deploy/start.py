@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import platform
-import secrets
 import shutil
 import subprocess
 import sys
@@ -126,18 +125,12 @@ def main():
     if args.install_only:
         print(f"Runtime ready: {python}")
         return
-    key = state / "api-key"
-    if not key.exists():
-        with os.fdopen(os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
-            f.write(secrets.token_urlsafe(32))
-    env = {**os.environ, "REMORY_API_KEY": os.environ.get("REMORY_API_KEY") or key.read_text().strip(),
-           "CUDA_HOME": str(cuda), "CUDA_PATH": str(cuda),
+    env = {**os.environ, "CUDA_HOME": str(cuda), "CUDA_PATH": str(cuda),
            "TRITON_PTXAS_PATH": str(cuda / "bin/ptxas"),
            "FLASHINFER_WORKSPACE_BASE": str(state / "kernel-cache"),
            "PATH": str(cuda / "bin") + os.pathsep + os.environ.get("PATH", os.defpath),
            "TOKENIZERS_PARALLELISM": "false", "SGLANG_DISABLE_CUDNN_CHECK": "1"}
-    key_source = "REMORY_API_KEY" if os.environ.get("REMORY_API_KEY") else str(key)
-    print(f"[Remory] API key: {key_source}; state: {state / 'memory.sqlite'}", flush=True)
+    print(f"[Remory] Session database: {state / 'memory.sqlite'}", flush=True)
     os.execve(python, [str(python), "-m", "remory.cli", "serve", "--backend", "sglang",
         "--store", str(state / "memory.sqlite"), *extra], env)
 

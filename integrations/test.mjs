@@ -5,13 +5,12 @@ import { compactResponse, readCompactionItem, generateFromItems } from "./codex/
 
 const handle = "rm_" + "a".repeat(48);
 
-test("HTTP client carries native IDs, session, authentication, and cancellation", async () => {
+test("HTTP client carries native IDs, session, and cancellation", async () => {
   const abort = new AbortController();
-  const client = new RemoryClient({ url: "http://localhost:8421", apiKey: "key", sessionId: "session",
+  const client = new RemoryClient({ url: "http://localhost:8421", sessionId: "session",
     fetchImpl: async (url, options) => {
       assert.equal(url, "http://localhost:8421/v1/compact");
-      assert.equal(options.headers["X-Remory-Session"], "session");
-      assert.equal(options.headers.Authorization, "Bearer key");
+      assert.deepEqual(options.headers, { "Content-Type": "application/json", "X-Remory-Session": "session" });
       assert.equal(options.signal, abort.signal);
       assert.deepEqual(JSON.parse(options.body), { prefix_ids: [1], history_ids: [2], summary_ids: [3], previous: null });
       return new Response(JSON.stringify({ handle }), { status: 200 });

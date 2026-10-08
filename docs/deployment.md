@@ -53,17 +53,15 @@ runtime recipe, install it in a new runtime directory.
 
 ## Session data
 
-The launcher generates `.remory/api-key` with owner-only permissions. Set
-`REMORY_API_KEY` to use your own key. The SQLite database at
-`.remory/memory.sqlite` stores summaries and residual tensors across restarts;
-keep it with your session data. Model weights use the Hugging Face cache.
+The SQLite database at `.remory/memory.sqlite` stores summaries and residual
+tensors across restarts; keep it with your session data. Model weights use the
+Hugging Face cache.
 
-When using a custom runtime directory or local weights, pass the same options
-to the example:
+When using a custom runtime directory or local weights, run the example with
+that environment and those model paths:
 
 ```bash
 /path/to/remory-runtime/venv/bin/python examples/quickstart.py \
-    --runtime-dir /path/to/remory-runtime \
     --actor /path/to/Qwen3.8-27B \
     --checkpoint /path/to/Remory-Qwen3.8-27B
 ```
@@ -74,7 +72,6 @@ For direct model inspection, a Transformers backend is also available:
 
 ```bash
 python -m pip install -e '.[server,transformers]'
-export REMORY_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 remory serve --backend transformers --device cuda:0 --store remory.sqlite
 ```
 

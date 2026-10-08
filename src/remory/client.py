@@ -3,11 +3,10 @@ import httpx
 
 
 class Client:
-    def __init__(self, url: str, *, session_id: str, api_key: str, timeout: float = 600,
+    def __init__(self, url: str, *, session_id: str, timeout: float = 600,
                  transport=None):
         self.http = httpx.Client(base_url=url.rstrip("/") + "/", timeout=timeout,
-                                 headers={"Authorization": f"Bearer {api_key}",
-                                          "X-Remory-Session": session_id}, transport=transport)
+                                 headers={"X-Remory-Session": session_id}, transport=transport)
 
     def __enter__(self):
         return self

@@ -7,9 +7,8 @@ import { compactResponse, generateFromItems } from "./bridge.mjs";
 const input = process.argv[2];
 if (!input) throw new Error("Usage: node integrations/codex/example.mjs native-input.json");
 const data = JSON.parse(await readFile(input, "utf8"));
-const apiKey = process.env.REMORY_API_KEY || (await readFile(".remory/api-key", "utf8")).trim();
 const client = new RemoryClient({ url: process.env.REMORY_URL || "http://127.0.0.1:8421",
-  apiKey, sessionId: process.env.REMORY_SESSION || "codex-example" });
+  sessionId: process.env.REMORY_SESSION || "codex-example" });
 
 const response = await compactResponse(client, { prefixIds: data.prefix_ids,
   historyIds: data.history_ids, summaryIds: data.summary_ids, previous: data.previous || null });

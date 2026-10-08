@@ -1,14 +1,13 @@
 # API
 
-The service listens on `http://127.0.0.1:8421` by default. Send these headers:
+The service listens on `http://127.0.0.1:8421` by default. Send a session header:
 
 ```http
-Authorization: Bearer <REMORY_API_KEY>
 X-Remory-Session: <session-id>
 ```
 
-The API key is shared by the server's clients; the session ID identifies their
-stored memories. `GET /health` needs no key. The OpenAPI schema is at `/openapi.json`.
+The session ID groups stored memories across requests. Use `GET /health` to check
+the service; the OpenAPI schema is at `/openapi.json`.
 
 ## Compact
 
@@ -90,7 +89,6 @@ if the server has already finished; delete it after committing the chosen result
 | Status | Meaning |
 | --- | --- |
 | 400 | Invalid input, incompatible checkpoint, or context overflow |
-| 401 | Invalid API key |
 | 404 | Memory handle not found in this session |
 | 422 | Invalid request schema |
 | 502 | Inference backend failed |

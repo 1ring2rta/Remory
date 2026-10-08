@@ -51,11 +51,9 @@ to `generate` on subsequent model calls. The harness supplies native token IDs
 and continues to execute tools.
 
 ```python
-from pathlib import Path
 from remory.client import Client
 
-with Client("http://127.0.0.1:8421", session_id="my-session",
-            api_key=Path(".remory/api-key").read_text().strip()) as client:
+with Client("http://127.0.0.1:8421", session_id="my-session") as client:
     memory = client.compact(
         prefix_ids=prefix_ids,    # System prompt, tools, and original task
         history_ids=history_ids,  # History being replaced

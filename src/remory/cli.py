@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 
 from .engine import Remory
 from .store import MemoryStore
@@ -20,8 +19,6 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)
     args = parser.parse_args()
-    if args.command == "serve" and not os.environ.get("REMORY_API_KEY"):
-        parser.error("set REMORY_API_KEY for the sidecar (a single trusted operator's sessions)")
     if args.backend == "sglang":
         from .backends.sglang import SGLangBackend
         backend = SGLangBackend.from_pretrained(args.checkpoint, actor_path=args.actor,
@@ -38,8 +35,7 @@ def main():
         import uvicorn
         from .server import create_app
         engine = Remory(backend, MemoryStore(args.store))
-        uvicorn.run(create_app(engine, api_key=os.environ["REMORY_API_KEY"]),
-                    host=args.host, port=args.port)
+        uvicorn.run(create_app(engine), host=args.host, port=args.port)
     finally:
         if hasattr(backend, "close"):
             backend.close()

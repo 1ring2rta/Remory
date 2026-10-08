@@ -1,7 +1,6 @@
 """Token-level sidecar API. Tool execution and chat-template rendering stay in the harness."""
 from dataclasses import asdict
 import logging
-import secrets
 from typing import Annotated
 
 import httpx
@@ -30,15 +29,10 @@ class GenerateRequest(Request):
     sampling: dict | None = None
 
 
-def create_app(engine: Remory, *, api_key: str) -> FastAPI:
-    if not api_key:
-        raise ValueError("a nonempty API key is required")
+def create_app(engine: Remory) -> FastAPI:
     app = FastAPI(title="Remory", version="0.2.0")
 
-    def authorize(authorization: Annotated[str | None, Header()] = None,
-                  x_remory_session: Annotated[str | None, Header()] = None):
-        if not secrets.compare_digest(authorization or "", "Bearer " + api_key):
-            raise HTTPException(401, "invalid API key")
+    def session(x_remory_session: Annotated[str | None, Header()] = None):
         try:
             engine.store._key(x_remory_session)
         except ValueError as error:
@@ -61,17 +55,17 @@ def create_app(engine: Remory, *, api_key: str) -> FastAPI:
         return {"status": "ok", "schema": "remory.v1"}
 
     @app.post("/v1/compact")
-    def compact(request: CompactRequest, owner: str = Depends(authorize)):
+    def compact(request: CompactRequest, owner: str = Depends(session)):
         memory = call(engine.compact, owner=owner, **request.model_dump())
         return {"handle": memory.handle, "summary_ids": list(memory.summary_ids),
                 "receipt": memory.receipt}
 
     @app.post("/v1/generate")
-    def generate(request: GenerateRequest, owner: str = Depends(authorize)):
+    def generate(request: GenerateRequest, owner: str = Depends(session)):
         return asdict(call(engine.generate, owner=owner, **request.model_dump()))
 
     @app.delete("/v1/memories/{handle}")
-    def delete(handle: str, owner: str = Depends(authorize)):
+    def delete(handle: str, owner: str = Depends(session)):
         if not call(engine.store.delete, owner=owner, handle=handle):
             raise HTTPException(404, "memory not found for this session")
         return {"deleted": True}
