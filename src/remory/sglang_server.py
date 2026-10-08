@@ -87,7 +87,7 @@ def launch(args):
     if not 0 < args.memory_fraction < 1 or args.gpu < 0:
         raise ValueError("invalid GPU index or memory fraction")
     settings = dict(actor=str(actor), checkpoint=str(checkpoint), context_limit=limit,
-                    memory_fraction=args.memory_fraction, gpu=args.gpu)
+                    memory_fraction=args.memory_fraction, gpu=args.gpu, tp_size=args.tp_size)
     host = "127.0.0.1" if args.host == "0.0.0.0" else ("::1" if args.host == "::" else args.host)
     if ":" in host:
         host = f"[{host}]"

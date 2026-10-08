@@ -9,16 +9,16 @@ backends read the context limit from the model configuration: 262,144 tokens
 ## Requirements
 
 - Linux x86_64, Python 3.11+ with `venv`, `git`, and a C++ compiler.
-- One NVIDIA GPU. Budget at least 80 GB of GPU memory and 100 GB of disk.
+- Budget at least 2 × 80 GB GPUs for Qwen3.8-27B + Remory and 100 GB of disk.
 - A driver supporting CUDA 12.8, or CUDA 13.0 for SM 10.3+ GPUs.
 
 The installer chooses the CUDA build and installs compiler components locally.
 The launcher downloads model weights and compiles kernels on first use.
 Downloads use GitHub, PyPI, PyTorch, NVIDIA, and Hugging Face.
 
-The full model has been tested on an NVIDIA L20D with CUDA 13.0. The 80 GB figure
-is a capacity recommendation; memory use depends on context length and GPU type.
-The current SGLang backend handles text requests serially on one GPU.
+SGLang loads the LLM across the selected GPUs using tensor parallelism. Each
+worker loads a copy of the Remory network and uses its local actor hidden states
+to encode memory. Text requests are handled serially.
 
 ## Install
 
@@ -44,9 +44,10 @@ the pinned runtime recipe, install it in a new runtime directory.
 ## Launch
 
 ```bash
-python -m remory.launch_server \
+CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
     --model-path Qwen/Qwen3.8-27B \
     --remory-checkpoint mocoV3/Remory-Qwen3.8-27B \
+    --tp 2 \
     --host 127.0.0.1 --port 8421
 ```
 
@@ -55,20 +56,22 @@ The published model ID resolves to the actor revision recorded in the checkpoint
 Both model arguments can be omitted to use the released Qwen defaults.
 
 ```bash
-# Choose a GPU.
-CUDA_VISIBLE_DEVICES=1 python -m remory.launch_server
+# Choose two GPUs.
+CUDA_VISIBLE_DEVICES=2,3 python -m remory.launch_server --tp 2
 
 # Optionally use a smaller context window to save GPU memory.
-python -m remory.launch_server --context-length 32768
+python -m remory.launch_server --tp 2 --context-length 32768
 
 # Load local snapshots of the released models.
 python -m remory.launch_server \
     --model-path /path/to/Qwen3.8-27B \
-    --remory-checkpoint /path/to/Remory-Qwen3.8-27B
+    --remory-checkpoint /path/to/Remory-Qwen3.8-27B \
+    --tp 2
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
+| `--tp` / `--tp-size` | `1` | Number of GPUs for tensor parallelism; use `2` for the Quick Start |
 | `--context-length` | Model maximum | Input and generated tokens combined |
 | `--mem-fraction-static` | `0.8` | SGLang static GPU memory fraction |
 | `--base-gpu-id` | `0` | GPU index within `CUDA_VISIBLE_DEVICES` |
@@ -79,7 +82,7 @@ python -m remory.launch_server \
 
 Requests that exceed the context limit return an error. Reduce `--context-length`
 if the model runs out of GPU memory. Run `python -m remory.launch_server --help`
-for the supported options. The current integration serves one GPU per process.
+for the supported options. A single GPU with enough memory can use `--tp 1`.
 
 The original `./deploy.sh` shortcut remains available and uses this same launcher.
 

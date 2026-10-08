@@ -17,9 +17,9 @@ it, helping the frozen model continue its work across compactions.
 
 ## Quick Start
 
-Requires Linux, Python 3.11+, `git`, a C++ compiler, and an NVIDIA GPU.
-We recommend 80 GB or more GPU memory. See [deployment](docs/deployment.md)
-for driver requirements and local model paths.
+Plan for **at least 2 × 80 GB GPUs** to deploy **Qwen3.8-27B + Remory** with
+SGLang. The command below loads both models and serves generation and compaction
+through one endpoint. See [deployment](docs/deployment.md) for more options.
 
 ### 1. Install
 
@@ -36,17 +36,17 @@ Remory hook, and CUDA compiler components.
 ### 2. Launch SGLang with Remory
 
 ```bash
-python -m remory.launch_server \
+CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
   --model-path Qwen/Qwen3.8-27B \
   --remory-checkpoint mocoV3/Remory-Qwen3.8-27B \
+  --tp 2 \
   --host 127.0.0.1 \
   --port 8421
 ```
 
-This loads the actor and memory network in the same SGLang worker. The context
-window defaults to the model maximum (256K for Qwen3.8-27B). The first run
-downloads weights and compiles GPU kernels. To choose a GPU, prefix the command
-with `CUDA_VISIBLE_DEVICES=1`.
+`--tp 2` splits the LLM across the two GPUs; each worker also loads Remory.
+The context window defaults to the model maximum (256K for Qwen3.8-27B).
+The first run downloads weights and compiles GPU kernels.
 
 ### 3. Generate and compact
 

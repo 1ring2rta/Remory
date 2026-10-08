@@ -15,7 +15,7 @@ from ..types import Contract, Generation, token_ids
 
 class SGLangBackend:
     def __init__(self, config, checkpoint, actor, *, context_limit=None,
-                 memory_fraction=0.8, gpu=0, timeout=600, startup_timeout=900):
+                 memory_fraction=0.8, gpu=0, tp_size=1, timeout=600, startup_timeout=900):
         from .sglang_worker import run_worker
         if context_limit is None:
             from transformers import AutoConfig
@@ -26,6 +26,8 @@ class SGLangBackend:
             raise ValueError("context limit must be at least 2048")
         if not 0 < memory_fraction < 1 or type(gpu) is not int or gpu < 0:
             raise ValueError("invalid GPU index or memory fraction")
+        if type(tp_size) is not int or tp_size < 1:
+            raise ValueError("tensor parallel size must be a positive integer")
         self.contract = Contract.from_config(config, identity=
             f"sglang:{Path(actor).resolve()}:{config['target_revision']}")
         self.context_limit, self.timeout = context_limit - 1, timeout
@@ -35,6 +37,7 @@ class SGLangBackend:
         self.process = ctx.Process(target=run_worker, args=(child, {
             "checkpoint": str(Path(checkpoint).resolve()), "actor": str(Path(actor).resolve()),
             "context_limit": context_limit, "memory_fraction": memory_fraction, "gpu": gpu,
+            "tp_size": tp_size,
         }), name="remory-sglang")
         self.process.start()
         child.close()

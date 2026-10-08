@@ -6,8 +6,11 @@ import traceback
 
 def engine_settings(settings):
     from .sglang_hook import HOOK
+    tp_size = settings.get("tp_size", 1)
+    if type(tp_size) is not int or tp_size < 1:
+        raise ValueError("tensor parallel size must be a positive integer")
     return dict(
-        model_path=settings["actor"], dtype="bfloat16", tp_size=1,
+        model_path=settings["actor"], dtype="bfloat16", tp_size=tp_size,
         base_gpu_id=settings["gpu"], context_length=settings["context_limit"],
         max_total_tokens=settings["context_limit"], max_running_requests=1,
         mem_fraction_static=settings["memory_fraction"], chunked_prefill_size=-1,

@@ -33,6 +33,8 @@ def main(argv=None):
         default="mocoV3/Remory-Qwen3.8-27B", help="memory checkpoint ID or local directory")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)
+    parser.add_argument("--tp", "--tp-size", "--tensor-parallel-size", dest="tp_size",
+        type=int, default=1, help="number of GPUs for tensor parallelism (default: 1)")
     parser.add_argument("--context-length", "--context-limit", dest="context_limit", type=int, metavar="TOKENS",
         help="context length (default: model maximum)")
     parser.add_argument("--mem-fraction-static", "--memory-fraction", dest="memory_fraction",

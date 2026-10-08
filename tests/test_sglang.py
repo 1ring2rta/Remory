@@ -23,9 +23,11 @@ def test_context_limit_uses_actor_config_unless_overridden(tmp_path, monkeypatch
     monkeypatch.setattr("remory.backends.sglang.mp.get_context", lambda _: context)
     monkeypatch.setattr(SGLangBackend, "_receive", lambda *args: {
         "context_length": expected, "max_running_requests": 1, "disable_radix_cache": True})
-    backend = SGLangBackend({"target_revision": "test"}, tmp_path, tmp_path, context_limit=limit)
+    backend = SGLangBackend({"target_revision": "test"}, tmp_path, tmp_path,
+                            context_limit=limit, tp_size=2)
     settings = context.Process.call_args.kwargs["args"][1]
     assert settings["context_limit"] == expected
+    assert settings["tp_size"] == 2
     # SGLang reserves one position beyond the maximum request length.
     assert backend.context_limit == expected - 1
 

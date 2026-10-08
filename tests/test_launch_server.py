@@ -41,6 +41,30 @@ def test_sglang_flags_and_existing_aliases_launch_the_same_server(tmp_path, monk
     assert seen[0].context_limit is None
 
 
+@pytest.mark.parametrize("flag", ["--tp", "--tp-size", "--tensor-parallel-size"])
+def test_tensor_parallel_launch_reaches_sglang_settings(tmp_path, monkeypatch, flag):
+    pytest.importorskip("torch")
+    from remory.backends.sglang_worker import engine_settings
+    seen = []
+    monkeypatch.setattr(launch_server, "configure_runtime", lambda _: tmp_path)
+    monkeypatch.setitem(sys.modules, "remory.sglang_server", SimpleNamespace(launch=seen.append))
+    launch_server.main([flag, "2", "--base-gpu-id", "1"])
+    args = seen[0]
+    settings = engine_settings(dict(actor="actor", checkpoint="memory", context_limit=262144,
+        memory_fraction=args.memory_fraction, gpu=args.gpu, tp_size=args.tp_size))
+    assert settings["tp_size"] == 2
+    assert settings["base_gpu_id"] == 1
+    assert settings["forward_hooks"][0]["config"]["checkpoint"] == "memory"
+
+
+@pytest.mark.parametrize("size", [0, -1, True])
+def test_invalid_tensor_parallel_size_is_rejected(size):
+    pytest.importorskip("torch")
+    from remory.backends.sglang_worker import engine_settings
+    with pytest.raises(ValueError, match="tensor parallel size"):
+        engine_settings({"tp_size": size})
+
+
 def test_explicit_model_id_keeps_checkpoint_revision(tmp_path, monkeypatch):
     pytest.importorskip("torch")
     pytest.importorskip("transformers")

@@ -58,3 +58,10 @@ not a full-length evaluation. CUDA 12.8 and other GPUs have not been tested loca
 
 Direct `python -m remory.launch_server` startup and the quickstart also passed
 with CUDA and runtime paths detected from the active environment.
+
+The `--tp 2` launch passed generation, two successive compactions with generated
+summaries, and continuation on two L20D GPUs on 2026-10-08, with the default
+256K context configuration and short inputs. The shared test container needed
+NCCL socket transport and CUDA memory allocation enabled to work around its
+network plugin and 64 MB shared-memory limit. These settings are local to that
+test. The 2 × 80 GB deployment budget has not been measured on 80 GB cards.

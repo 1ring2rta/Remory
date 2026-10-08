@@ -13,6 +13,7 @@ def main():
     parser.add_argument("--actor", help="optional local actor snapshot")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--gpu", type=int, default=0, help="SGLang GPU index in CUDA_VISIBLE_DEVICES")
+    parser.add_argument("--tp", "--tp-size", "--tensor-parallel-size", dest="tp_size", type=int, default=1)
     parser.add_argument("--memory-fraction", type=float, default=0.8)
     parser.add_argument("--context-limit", type=int, help="context length (default: model maximum)")
     parser.add_argument("--store", default="remory.sqlite")
@@ -29,7 +30,8 @@ def main():
     if args.backend == "sglang":
         from .backends.sglang import SGLangBackend
         backend = SGLangBackend.from_pretrained(args.checkpoint, actor_path=args.actor,
-            gpu=args.gpu, context_limit=args.context_limit, memory_fraction=args.memory_fraction)
+            gpu=args.gpu, tp_size=args.tp_size, context_limit=args.context_limit,
+            memory_fraction=args.memory_fraction)
     else:
         from .backends.transformers import TransformersBackend
         backend = TransformersBackend.from_pretrained(args.checkpoint, actor_path=args.actor,
