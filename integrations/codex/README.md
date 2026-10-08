@@ -7,11 +7,13 @@ by residual encoding, and carries the resulting checkpoint between requests.
 
 ## Run the example
 
-Start Remory with `./deploy.sh`, then run these commands from the repository root
-with Node 22+:
+Start SGLang with `python -m remory.launch_server` after
+[installing the runtime](../../docs/deployment.md#install), then run these commands
+from the repository root with Node 22+:
 
 ```bash
-.remory/venv/bin/python examples/quickstart.py --write-input /tmp/remory-input.json
+source .remory/venv/bin/activate
+python examples/quickstart.py --write-input /tmp/remory-input.json
 node integrations/codex/example.mjs /tmp/remory-input.json
 ```
 

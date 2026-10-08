@@ -13,8 +13,8 @@ from remory.models.load import resolve_checkpoint, resolve_actor
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8421")
-    parser.add_argument("--checkpoint", default="mocoV3/Remory-Qwen3.8-27B")
-    parser.add_argument("--actor", help="same local actor snapshot used by the server")
+    parser.add_argument("--remory-checkpoint", "--checkpoint", dest="checkpoint", default="mocoV3/Remory-Qwen3.8-27B")
+    parser.add_argument("--model-path", "--actor", dest="actor", help="same actor model ID or local snapshot used by the server")
     parser.add_argument("--write-input", type=Path, help="also save the tokenized input for the Codex example")
     args = parser.parse_args()
     _, config = resolve_checkpoint(args.checkpoint)

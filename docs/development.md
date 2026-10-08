@@ -16,6 +16,8 @@ Actions configuration is in [ci-tests.yml](ci-tests.yml).
 [`pyramid.py`](../src/remory/pyramid.py) keeps memory within the slot budget, and
 [`store.py`](../src/remory/store.py) persists immutable checkpoints in SQLite.
 
+[`launch_server.py`](../src/remory/launch_server.py) parses launch options and
+configures the installed CUDA toolchain before importing SGLang.
 [`sglang_server.py`](../src/remory/sglang_server.py) extends SGLang's native HTTP
 server. Normal answers and summaries go through `/generate`; residual encoding
 also calls `/generate`, with `max_new_tokens=0` and Remory parameters. Its
@@ -53,3 +55,6 @@ quickstart with a generated summary, the Codex example, two successive compactio
 resume through a new client, and native SSE with residual memory. It used the
 model's default 262,144-token context window. Smoke inputs were short; this was
 not a full-length evaluation. CUDA 12.8 and other GPUs have not been tested locally.
+
+Direct `python -m remory.launch_server` startup and the quickstart also passed
+with CUDA and runtime paths detected from the active environment.

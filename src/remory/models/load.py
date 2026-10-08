@@ -30,9 +30,10 @@ def resolve_checkpoint(checkpoint: str = WEIGHTS, *, revision=REVISION):
 def resolve_actor(config, actor_path=None):
     if actor_path is not None:
         path = Path(actor_path).expanduser().resolve()
-        if not (path / "config.json").is_file():
-            raise ValueError("--actor must name a local actor snapshot")
-        return path
+        if (path / "config.json").is_file():
+            return path
+        if str(actor_path) != config["target_model"]:
+            raise ValueError("model path must be a local actor snapshot or the checkpoint's target model ID")
     from huggingface_hub import snapshot_download
     return Path(snapshot_download(config["target_model"], revision=config["target_revision"],
         allow_patterns=["*.json", "*.safetensors", "*.jinja", "*.txt", "*.model"]))

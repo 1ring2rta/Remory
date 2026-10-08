@@ -21,21 +21,34 @@ Requires Linux, Python 3.11+, `git`, a C++ compiler, and an NVIDIA GPU.
 We recommend 80 GB or more GPU memory. See [deployment](docs/deployment.md)
 for driver requirements and local model paths.
 
-### 1. Deploy SGLang
+### 1. Install
 
 ```bash
 git clone https://github.com/1ring2rta/Remory.git
 cd Remory
-./deploy.sh
+python deploy/install.py
+source .remory/venv/bin/activate
 ```
 
-The launcher installs SGLang with the Remory hook and loads the actor and memory
-network in the same worker. It serves SGLang's native API at
-`http://127.0.0.1:8421`, using the model's full context window (256K for Qwen3.8-27B).
-The first run downloads weights and compiles GPU kernels. To choose a GPU, use
-`CUDA_VISIBLE_DEVICES=1 ./deploy.sh`.
+The installer prepares a local environment with the pinned SGLang version,
+Remory hook, and CUDA compiler components.
 
-### 2. Generate
+### 2. Launch SGLang with Remory
+
+```bash
+python -m remory.launch_server \
+  --model-path Qwen/Qwen3.8-27B \
+  --remory-checkpoint mocoV3/Remory-Qwen3.8-27B \
+  --host 127.0.0.1 \
+  --port 8421
+```
+
+This loads the actor and memory network in the same SGLang worker. The context
+window defaults to the model maximum (256K for Qwen3.8-27B). The first run
+downloads weights and compiles GPU kernels. To choose a GPU, prefix the command
+with `CUDA_VISIBLE_DEVICES=1`.
+
+### 3. Generate and compact
 
 ```bash
 curl http://127.0.0.1:8421/generate \
@@ -43,12 +56,11 @@ curl http://127.0.0.1:8421/generate \
   -d '{"text":"The capital of France is", "sampling_params":{"temperature":0,"max_new_tokens":16}}'
 ```
 
-### 3. Compact and continue
-
-In another terminal, run the example from the repository root:
+In another terminal, run the full compaction example from the repository root:
 
 ```bash
-.remory/venv/bin/python examples/quickstart.py
+source .remory/venv/bin/activate
+python examples/quickstart.py
 ```
 
 The example generates an answer, creates a summary and residual memory, then

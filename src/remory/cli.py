@@ -19,6 +19,9 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)
     args = parser.parse_args()
+    if args.backend == "sglang":
+        from .launch_server import configure_runtime
+        configure_runtime()
     if args.backend == "sglang" and args.command == "serve":
         from .sglang_server import launch
         launch(args)

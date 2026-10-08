@@ -32,10 +32,10 @@ def verify_installation(package=None):
     if package is None:
         spec = importlib.util.find_spec("sglang")
         if spec is None:
-            raise RuntimeError("SGLang is not installed; run ./deploy.sh")
+            raise RuntimeError("SGLang is not installed; run python deploy/install.py")
         package = Path(spec.origin).parent
     for name, change in recipe()["files"].items():
         path = Path(package) / name
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != change["after"]:
-            raise RuntimeError(f"SGLang integration is missing or incompatible: {name}; run ./deploy.sh")
+            raise RuntimeError(f"SGLang integration is missing or incompatible: {name}; run python deploy/install.py")
     return {"commit": recipe()["commit"], "patched_files": len(recipe()["files"])}
