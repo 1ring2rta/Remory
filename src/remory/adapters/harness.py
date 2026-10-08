@@ -1,5 +1,6 @@
 """Compaction and generation, leaving tools and transcript ownership in the harness."""
 from dataclasses import asdict, dataclass
+import json
 import re
 from ..types import digest
 
@@ -58,6 +59,33 @@ class ChatTemplate:
 class Harness:
     def __init__(self, client, codec: ChatTemplate):
         self.client, self.codec = client, codec
+
+    def compact(self, *, prefix_messages, removed_messages, summary_prompt,
+                summary_schema=None, max_summary_tokens=1024,
+                previous: Checkpoint | None = None) -> Checkpoint:
+        """Replace compact: generate the summary, then encode residual memory.
+
+        Both steps use the deployed SGLang model. Publish the new checkpoint
+        only after they succeed; previous remains usable if either step fails.
+        """
+        messages = removed_messages + [{"role": "user", "content": summary_prompt}]
+        prefix, tail = self.codec.split(prefix_messages, messages, generation=True)
+        if previous and digest(prefix) != previous.prefix_sha256:
+            raise ValueError("system/tools/task prefix changed since compaction")
+        source = ({"handle": previous.handle, "continuation_ids": tail} if previous
+                  else {"input_ids": prefix + tail})
+        sampling = {"json_schema": json.dumps(summary_schema)} if summary_schema else None
+        result = self.client.generate(**source, max_new_tokens=max_summary_tokens, sampling=sampling)
+        reason = result.get("meta_info", {}).get("finish_reason")
+        if reason == "length" or isinstance(reason, dict) and reason.get("type") in {"length", "abort", "error"}:
+            raise RuntimeError("summary did not complete; keep the previous context")
+        summary = result["text"].strip()
+        if not summary:
+            raise RuntimeError("summary is empty; keep the previous context")
+        if summary_schema:
+            json.loads(summary)
+        return self.on_compact(prefix_messages=prefix_messages, removed_messages=removed_messages,
+                               summary=summary, previous=previous)
 
     def on_compact(self, *, prefix_messages, removed_messages, summary: str,
                    previous: Checkpoint | None = None) -> Checkpoint:

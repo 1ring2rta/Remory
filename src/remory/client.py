@@ -28,9 +28,19 @@ class Client:
 
     def generate(self, *, max_new_tokens=1024, handle=None, input_ids=None,
                  continuation_ids=(), sampling=None):
-        return self._post("v1/generate", dict(handle=handle, input_ids=input_ids,
-                                            continuation_ids=list(continuation_ids),
-                                            max_new_tokens=max_new_tokens, sampling=sampling))
+        if handle is not None and input_ids is not None:
+            raise ValueError("use continuation_ids with a handle, not full input_ids")
+        if handle is None and continuation_ids:
+            raise ValueError("continuation_ids requires a memory handle")
+        body = {"input_ids": list(continuation_ids) if handle else input_ids,
+                "sampling_params": {"temperature": 0.0, **(sampling or {}), "max_new_tokens": max_new_tokens}}
+        if handle:
+            body["remory"] = {"handle": handle}
+        result = self._post("generate", body)
+        reason = result.get("meta_info", {}).get("finish_reason")
+        if isinstance(reason, dict) and reason.get("type") in {"abort", "error"}:
+            raise RuntimeError("SGLang aborted generation")
+        return result
 
     def delete(self, handle):
         response = self.http.delete("v1/memories/" + handle)

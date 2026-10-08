@@ -40,3 +40,31 @@ def test_harness_commits_and_preserves_native_continuation():
 def test_chat_template_does_not_silently_drop_images():
     with pytest.raises(ValueError, match="images are unsupported"):
         ChatTemplate(Tokenizer()).split([{"role": "user", "content": [{"type": "image"}]}], [])
+
+
+def test_compact_generates_summary_before_residual_and_reuses_previous(monkeypatch):
+    client = Client()
+    harness = Harness(client, ChatTemplate(Tokenizer()))
+    prefix = [{"role": "system", "content": "system"}, {"role": "user", "content": "task"}]
+    history = [{"role": "assistant", "content": "response"}]
+    calls = []
+    def generate(**kwargs):
+        calls.append(kwargs)
+        return {"text": "summary", "meta_info": {"finish_reason": {"type": "stop"}}}
+    monkeypatch.setattr(client, "generate", generate)
+    first = harness.compact(prefix_messages=prefix, removed_messages=history, summary_prompt="summarize")
+    assert calls[0]["input_ids"] == [6, 4, 8, 9, 99]
+    assert client.request["history_ids"] == [8]  # Summary instruction is not part of the source.
+    assert client.request["summary_ids"] == [7]
+    harness.compact(prefix_messages=prefix, removed_messages=history,
+                    summary_prompt="summarize", previous=first)
+    assert calls[1]["handle"] == first.handle
+    assert calls[1]["continuation_ids"] == [8, 9, 99]
+    assert client.request["previous"] == first.handle
+    previous_request = client.request
+    monkeypatch.setattr(client, "generate", lambda **kw: {
+        "text": "unfinished", "meta_info": {"finish_reason": {"type": "length"}}})
+    with pytest.raises(RuntimeError, match="summary did not complete"):
+        harness.compact(prefix_messages=prefix, removed_messages=history,
+                        summary_prompt="summarize", previous=first)
+    assert client.request is previous_request

@@ -1,11 +1,11 @@
-"""Run one compaction and continue from its memory with the deployed Qwen actor."""
+"""Generate, compact, and continue through one SGLang server."""
 import argparse
 import json
 from pathlib import Path
 
 from transformers import AutoTokenizer
 
-from remory.adapters.harness import ChatTemplate
+from remory.adapters.harness import ChatTemplate, Harness
 from remory.client import Client
 from remory.models.load import resolve_checkpoint, resolve_actor
 
@@ -26,29 +26,29 @@ def main():
     history = [{"role": "assistant", "content": "What remains before release?"},
                {"role": "user", "content": "The tests passed. The next step is to publish the README."},
                {"role": "assistant", "content": "Understood. I will keep that next step in mind."}]
-    summary = json.dumps({
-        "current_progress": ["Tests passed."],
-        "key_decisions": [],
-        "important_context_constraints_preferences": ["Answer briefly."],
-        "next_steps": ["Publish the README."],
-        "critical_data_examples_references": ["Project: Remory."],
-    })
     prefix_ids, history_ids = codec.split(prefix, history)
-    _, tail = codec.split(prefix, [{"role": "user", "content": "What should we do next?"}],
-                          generation=True)
-    request = dict(prefix_ids=prefix_ids, history_ids=history_ids,
-                   summary_ids=codec.summary(summary), continuation_ids=tail)
-    if args.write_input:
-        args.write_input.write_text(json.dumps(request) + "\n")
+    question = [{"role": "user", "content": "What should we do next?"}]
+    _, tail = codec.split(prefix, question, generation=True)
     with Client(args.url, session_id="quickstart") as client:
-        checkpoint = client.compact(prefix_ids=prefix_ids, history_ids=history_ids,
-                                    summary_ids=request["summary_ids"])
-        print(f"Compacted {len(history_ids)} history tokens into "
-              f"{checkpoint['receipt']['soft_tokens']} residual tokens plus the summary.")
-        result = client.generate(handle=checkpoint["handle"], continuation_ids=tail,
-                                 max_new_tokens=128)
-        print(result["text"])
-        client.delete(checkpoint["handle"])
+        _, full_tail = codec.split(prefix, history + question, generation=True)
+        result = client.generate(input_ids=prefix_ids + full_tail, max_new_tokens=128)
+        print("Before compaction:", result["text"], flush=True)
+
+        harness = Harness(client, codec)
+        contract = config["summary_contract"]
+        checkpoint = harness.compact(prefix_messages=prefix, removed_messages=history,
+            summary_prompt=contract["prompt"], summary_schema=contract["output_schema"])
+        try:
+            print("Generated summary:", checkpoint.summary, flush=True)
+            result = harness.generate(checkpoint=checkpoint, prefix_messages=prefix,
+                                      messages=question, max_new_tokens=128)
+            print("After compaction:", result["text"], flush=True)
+            if args.write_input:
+                request = dict(prefix_ids=prefix_ids, history_ids=history_ids,
+                    summary_ids=codec.summary(checkpoint.summary), continuation_ids=tail)
+                args.write_input.write_text(json.dumps(request) + "\n")
+        finally:
+            client.delete(checkpoint.handle)
 
 
 if __name__ == "__main__":

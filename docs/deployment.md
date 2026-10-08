@@ -1,6 +1,7 @@
 # Deployment
 
-`./deploy.sh` installs the runtime and starts Remory with a local SGLang worker.
+`./deploy.sh` installs the runtime and starts SGLang's native HTTP server with
+the Remory model hook and compaction routes on the same port.
 The default model is Qwen3.8-27B with the released Remory checkpoint. Both
 backends read the context limit from the model configuration: 262,144 tokens
 (256K) for Qwen3.8-27B.

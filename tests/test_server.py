@@ -24,11 +24,12 @@ def test_compact_resume_generate_delete_api(runtime):
         assert generated["text"] == "ok"
         assert runtime.backend.calls[-1][0].memory.shape == (4, 3)
         wrong_owner = {**headers, "X-Remory-Session": "b"}
-        assert client.post("/v1/generate", headers=wrong_owner, json={"handle": handle}).status_code == 404
+        generate = {"input_ids": [], "remory": {"handle": handle}}
+        assert client.post("/generate", headers=wrong_owner, json=generate).status_code == 404
         assert client.post("/v1/compact", headers=headers, json={**body, "image_data": ["x"]}).status_code == 422
         assert client.post("/v1/compact", headers=headers, json={**body, "prefix_ids": [True]}).status_code == 422
         assert sdk.delete(handle) == {"deleted": True}
-        assert client.post("/v1/generate", headers=headers, json={"handle": handle}).status_code == 404
+        assert client.post("/generate", headers=headers, json=generate).status_code == 404
 
 
 def test_api_backend_failure_does_not_return_checkpoint(runtime):

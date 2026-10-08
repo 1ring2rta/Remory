@@ -21,15 +21,29 @@ Requires Linux, Python 3.11+, `git`, a C++ compiler, and an NVIDIA GPU.
 We recommend 80 GB or more GPU memory. See [deployment](docs/deployment.md)
 for driver requirements and local model paths.
 
+### 1. Deploy SGLang
+
 ```bash
 git clone https://github.com/1ring2rta/Remory.git
 cd Remory
 ./deploy.sh
 ```
 
-The launcher installs SGLang, downloads the model weights, and starts the service
-at `http://127.0.0.1:8421`, using the model's full context window (256K for
-Qwen3.8-27B). The first run also compiles GPU kernels.
+The launcher installs SGLang with the Remory hook and loads the actor and memory
+network in the same worker. It serves SGLang's native API at
+`http://127.0.0.1:8421`, using the model's full context window (256K for Qwen3.8-27B).
+The first run downloads weights and compiles GPU kernels. To choose a GPU, use
+`CUDA_VISIBLE_DEVICES=1 ./deploy.sh`.
+
+### 2. Generate
+
+```bash
+curl http://127.0.0.1:8421/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"The capital of France is", "sampling_params":{"temperature":0,"max_new_tokens":16}}'
+```
+
+### 3. Compact and continue
 
 In another terminal, run the example from the repository root:
 
@@ -37,43 +51,44 @@ In another terminal, run the example from the repository root:
 .remory/venv/bin/python examples/quickstart.py
 ```
 
-It compacts a short conversation and continues from the resulting memory.
-To select a GPU:
+The example generates an answer, creates a summary and residual memory, then
+continues from that checkpoint. All model calls use the same SGLang `/generate`
+endpoint. During residual encoding, the Remory hook reads the actor's hidden
+states and runs the memory network. During continuation, it inserts the saved
+soft tokens after the summary.
 
-```bash
-CUDA_VISIBLE_DEVICES=1 ./deploy.sh
-```
+## Replace compact
 
-## Usage
-
-Call `compact` when the agent creates a new summary, then pass the returned handle
-to `generate` on subsequent model calls. The harness supplies native token IDs
-and continues to execute tools.
+[`Harness.compact`](src/remory/adapters/harness.py) is the compaction method to
+connect to your agent: generate a summary, encode residual memory, then return
+the new checkpoint. The agent retains its own tools and compaction trigger.
 
 ```python
+from remory.adapters import Harness
 from remory.client import Client
 
 with Client("http://127.0.0.1:8421", session_id="my-session") as client:
-    memory = client.compact(
-        prefix_ids=prefix_ids,    # System prompt, tools, and original task
-        history_ids=history_ids,  # History being replaced
-        summary_ids=summary_ids,
+    agent = Harness(client, codec)  # The actor's native chat template
+    checkpoint = agent.compact(
+        prefix_messages=prefix,    # System prompt, tools, and original task
+        removed_messages=history,
+        summary_prompt=summary_prompt,
+        summary_schema=summary_schema,
     )
-    result = client.generate(
-        handle=memory["handle"],
-        continuation_ids=continuation_ids,
-        max_new_tokens=1024,
+    result = agent.generate(
+        checkpoint=checkpoint, prefix_messages=prefix, messages=new_messages,
     )
 ```
 
-Save the handle with the summary. For the next compaction, pass it as `previous`
-and supply the newly removed history. Session state is stored in
-`.remory/memory.sqlite`.
+The [complete example](examples/quickstart.py) loads the tokenizer and summary
+prompt from the released checkpoint. If your harness already generates a
+summary, use `on_compact(..., summary=summary)` to add residual memory.
 
-The [Codex example](integrations/codex) connects these calls to a custom Responses
-provider. The provider handles prompt rendering, tool parsing, and streaming;
-the included bridge handles residual compaction and recovery.
-See the [API reference](docs/api.md) for request fields and session handling.
+Save the checkpoint with the conversation. For the next compaction, pass it as
+`previous` and supply the newly removed history. Memory is stored in
+`.remory/memory.sqlite`. The [Codex example](integrations/codex) shows where to
+override a Responses provider's compact handler and resume generation.
+See the [API reference](docs/api.md) for native SGLang requests with memory.
 
 ## Results
 

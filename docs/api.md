@@ -1,13 +1,53 @@
 # API
 
-The service listens on `http://127.0.0.1:8421` by default. Send a session header:
+SGLang listens on `http://127.0.0.1:8421` by default. Normal generation uses its
+native `/generate` endpoint and response format. Remory adds saved memory to
+that endpoint and a `/v1/compact` route on the same server.
+
+Send a session header when creating, restoring, or deleting memory:
 
 ```http
 X-Remory-Session: <session-id>
 ```
 
-The session ID groups stored memories across requests. Use `GET /health` to check
-the service; the OpenAPI schema is at `/openapi.json`.
+The session ID groups stored memories across requests. `GET /health` checks the
+service, `/get_server_info` shows the SGLang configuration, and `/openapi.json`
+describes the routes.
+
+## Generate
+
+`POST /generate`
+
+Before compaction, send an ordinary SGLang request:
+
+```json
+{
+  "input_ids": [1, 2, 3],
+  "sampling_params": {"temperature": 0, "max_new_tokens": 1024}
+}
+```
+
+Native `text` prompts and streaming also work. For chat and tool use, render
+messages with the actor's native tokenizer and chat template.
+
+After compaction, add the checkpoint handle and send only the continuation IDs:
+
+```json
+{
+  "input_ids": [8, 9],
+  "sampling_params": {"temperature": 0, "max_new_tokens": 1024},
+  "remory": {"handle": "rm_…"}
+}
+```
+
+Remory restores the saved prefix, summary, and soft memory before SGLang
+schedules the request. The model hook inserts the residual embeddings during
+prefill. Requests with a handle accept one text sequence as `input_ids`;
+batching, images, and SGLang KV sessions cannot be combined with the handle.
+
+The response is SGLang's native `text`, `output_ids`, and `meta_info`, including
+token usage and `finish_reason`. Set `stream: true` for native SSE output.
+The Python and JavaScript clients expose non-streaming convenience methods.
 
 ## Compact
 
@@ -27,8 +67,9 @@ Use the actor's native tokenizer and chat template for all token fields.
 `history_ids` contains the messages being removed. Keep complete tool call/result
 pairs together. Retained messages go into the next generation's continuation.
 
-The caller generates the summary. The released model uses a JSON summary with
-five array fields:
+`Harness.compact` generates the summary through `/generate` before calling this
+route. A harness with its own summary method can supply `summary_ids` directly.
+The released model uses a JSON summary with five array fields:
 
 ```json
 {
@@ -54,26 +95,11 @@ identical, and send only newly removed history. Remory restores the previous
 summary and memory before re-encoding them with that history. Each compaction
 creates a new immutable handle, so branches can keep different checkpoints.
 
-## Generate
-
-`POST /v1/generate`
-
-```json
-{
-  "handle": "rm_…",
-  "continuation_ids": [8, 9],
-  "max_new_tokens": 1024,
-  "sampling": {"temperature": 0.0}
-}
-```
-
-The service restores the saved prefix, summary, and soft memory, then appends
-`continuation_ids`. The response contains `text`, `output_ids`, `usage`, and
-`finish_reason`. The provider parses native tool calls and formats tool results.
-Generation is synchronous.
-
-Before the first compaction, omit `handle` and send the full prompt in `input_ids`.
-Use either `input_ids` or a handle with `continuation_ids`.
+Internally, each residual encoding pass posts to the same SGLang `/generate`
+endpoint with `max_new_tokens: 0`, a Remory operation in
+`sampling_params.custom_params`, and `return_hidden_states: true`. The hook
+captures the selected actor layers and runs the memory network in the worker.
+The hidden-state response channel carries the resulting memory rows.
 
 ## Stored memory
 
@@ -92,3 +118,6 @@ if the server has already finished; delete it after committing the chosen result
 | 404 | Memory handle not found in this session |
 | 422 | Invalid request schema |
 | 502 | Inference backend failed |
+
+The Transformers reference server accepts the token-ID generation and memory
+requests above; native text prompts and SSE are provided by the SGLang deployment.

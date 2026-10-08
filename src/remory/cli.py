@@ -19,6 +19,10 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)
     args = parser.parse_args()
+    if args.backend == "sglang" and args.command == "serve":
+        from .sglang_server import launch
+        launch(args)
+        return
     if args.backend == "sglang":
         from .backends.sglang import SGLangBackend
         backend = SGLangBackend.from_pretrained(args.checkpoint, actor_path=args.actor,

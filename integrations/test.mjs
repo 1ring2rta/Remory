@@ -43,6 +43,20 @@ test("Codex restores the latest checkpoint and renders only its continuation", a
     [{ type: "compaction", encrypted_content: "foreign" }], { render }), /foreign/);
 });
 
+test("generation uses SGLang's native endpoint before and after compaction", async () => {
+  const bodies = [];
+  const client = new RemoryClient({ url: "http://localhost:8421", sessionId: "session",
+    fetchImpl: async (url, options) => {
+      assert.equal(url, "http://localhost:8421/generate");
+      bodies.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({ text: "ok", output_ids: [2], meta_info: {} }));
+    } });
+  await client.generate({ inputIds: [1, 2], maxNewTokens: 10 });
+  await client.generate({ handle, continuationIds: [3], maxNewTokens: 20 });
+  assert.deepEqual(bodies[0], { input_ids: [1, 2], sampling_params: { temperature: 0, max_new_tokens: 10 } });
+  assert.deepEqual(bodies[1], { input_ids: [3], sampling_params: { temperature: 0, max_new_tokens: 20 }, remory: { handle } });
+});
+
 test("Codex carrier round-trip rejects foreign ciphertext", async () => {
   const response = await compactResponse({ compact: async () => ({ handle }) }, {});
   assert.equal(response.object, "response.compaction");

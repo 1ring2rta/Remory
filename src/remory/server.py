@@ -1,5 +1,4 @@
-"""Token-level sidecar API. Tool execution and chat-template rendering stay in the harness."""
-from dataclasses import asdict
+"""Memory routes for SGLang and a small Transformers reference server."""
 import logging
 from typing import Annotated
 
@@ -21,12 +20,14 @@ class CompactRequest(Request):
     previous: str | None = None
 
 
-class GenerateRequest(Request):
-    handle: str | None = None
-    input_ids: list[StrictInt] | None = None
-    continuation_ids: list[StrictInt] = Field(default_factory=list)
-    max_new_tokens: StrictInt = 1024
-    sampling: dict | None = None
+class MemoryReference(Request):
+    handle: str
+
+
+class NativeGenerateRequest(Request):
+    input_ids: list[StrictInt]
+    sampling_params: dict = Field(default_factory=dict)
+    remory: MemoryReference | None = None
 
 
 def create_app(engine: Remory) -> FastAPI:
@@ -60,9 +61,16 @@ def create_app(engine: Remory) -> FastAPI:
         return {"handle": memory.handle, "summary_ids": list(memory.summary_ids),
                 "receipt": memory.receipt}
 
-    @app.post("/v1/generate")
-    def generate(request: GenerateRequest, owner: str = Depends(session)):
-        return asdict(call(engine.generate, owner=owner, **request.model_dump()))
+    @app.post("/generate")
+    def native_generate(request: NativeGenerateRequest, owner: str = Depends(session)):
+        params = dict(request.sampling_params)
+        count = params.pop("max_new_tokens", 1024)
+        result = call(engine.generate, owner=owner, max_new_tokens=count, sampling=params,
+            handle=request.remory.handle if request.remory else None,
+            input_ids=None if request.remory else request.input_ids,
+            continuation_ids=request.input_ids if request.remory else ())
+        return {"text": result.text, "output_ids": result.output_ids,
+                "meta_info": {**result.usage, "finish_reason": result.finish_reason}}
 
     @app.delete("/v1/memories/{handle}")
     def delete(handle: str, owner: str = Depends(session)):

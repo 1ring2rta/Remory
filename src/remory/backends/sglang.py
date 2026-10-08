@@ -66,7 +66,7 @@ class SGLangBackend:
             raise RuntimeError(message["error"])
         return message["result"]
 
-    def _request(self, source, sampling, payload=None):
+    def build_request(self, source, sampling, payload=None):
         if len(source.input_ids) + sampling["max_new_tokens"] > self.context_limit:
             raise ValueError("request exceeds context limit; refusing truncation")
         from .sglang_hook import parameter_carrier
@@ -76,6 +76,10 @@ class SGLangBackend:
             request["sampling_params"] = {**sampling, "custom_params": {"remory": payload}}
             request["custom_logit_processor"] = parameter_carrier()
             request["return_hidden_states"] = payload["mode"] == "encode"
+        return request
+
+    def _request(self, source, sampling, payload=None):
+        request = self.build_request(source, sampling, payload)
         with self.lock:
             if self.closed:
                 raise RuntimeError("SGLang worker is closed")
