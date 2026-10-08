@@ -15,7 +15,7 @@ def main():
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--gpu", type=int, default=0, help="SGLang GPU index in CUDA_VISIBLE_DEVICES")
     parser.add_argument("--memory-fraction", type=float, default=0.8)
-    parser.add_argument("--context-limit", type=int, default=32768)
+    parser.add_argument("--context-limit", type=int, help="context length (default: model maximum)")
     parser.add_argument("--store", default="remory.sqlite")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)

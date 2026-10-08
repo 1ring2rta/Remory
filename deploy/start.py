@@ -111,7 +111,7 @@ def install(state, build):
 
 def main():
     parser = argparse.ArgumentParser(description="Install and start Remory with its own SGLang worker.",
-        epilog="Remaining options go to remory serve, e.g. --gpu 0 --context-limit 32768 --port 8421.")
+        epilog="Remaining options go to remory serve, e.g. --gpu 0 --port 8421.")
     parser.add_argument("--runtime-dir", type=Path, default=ROOT / ".remory")
     parser.add_argument("--cuda", choices=["auto", "cu128", "cu130"], default="auto")
     parser.add_argument("--install-only", action="store_true")

@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -9,6 +10,24 @@ pytest.importorskip("transformers")
 from remory import Contract, Prepared  # noqa: E402
 from remory.backends.sglang import SGLangBackend  # noqa: E402
 from remory.backends.sglang_hook import ResidualHook, validate_payload  # noqa: E402
+
+
+@pytest.mark.parametrize("limit,expected", [(None, 262144), (8192, 8192)])
+def test_context_limit_uses_actor_config_unless_overridden(tmp_path, monkeypatch, limit, expected):
+    from transformers import Qwen3_5Config
+    Qwen3_5Config(text_config={"max_position_embeddings": 262144}).save_pretrained(tmp_path)
+    contract = Contract(4, 8, 2, 8, 4, 2, (), (), (), (), "test")
+    monkeypatch.setattr(Contract, "from_config", lambda *args, **kwargs: contract)
+    context = MagicMock()
+    context.Pipe.return_value = (MagicMock(), MagicMock())
+    monkeypatch.setattr("remory.backends.sglang.mp.get_context", lambda _: context)
+    monkeypatch.setattr(SGLangBackend, "_receive", lambda *args: {
+        "context_length": expected, "max_running_requests": 1, "disable_radix_cache": True})
+    backend = SGLangBackend({"target_revision": "test"}, tmp_path, tmp_path, context_limit=limit)
+    settings = context.Process.call_args.kwargs["args"][1]
+    assert settings["context_limit"] == expected
+    # SGLang reserves one position beyond the maximum request length.
+    assert backend.context_limit == expected - 1
 
 
 def encode_payload(**overrides):

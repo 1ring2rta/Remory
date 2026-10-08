@@ -51,7 +51,10 @@ def test_real_tiny_actor_compressor_recursive_encode_and_generate(tmp_path, monk
     compressor = SummaryResidualCompressor(draft, target_hidden_size=16, target_layer_ids=(0, 1),
         compression_ratio=2, local_window=2048, gradient_checkpointing=False, max_depth=4).eval()
     contract = Contract(16, 8, 2, 8, 4, 2, (10,), (11,), (12,), (13,), "tiny-qwen")
+    backend = TransformersBackend(actor, compressor, Decoder(), contract)
+    assert backend.context_limit == 256
     backend = TransformersBackend(actor, compressor, Decoder(), contract, context_limit=200)
+    assert backend.context_limit == 200
     source = Prepared((1, 4, 5, 6))
     observed = []
     hook = compressor.register_forward_pre_hook(lambda module, args: observed.append(args[0].detach().clone()))

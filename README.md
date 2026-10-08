@@ -28,7 +28,8 @@ cd Remory
 ```
 
 The launcher installs SGLang, downloads the model weights, and starts the service
-at `http://127.0.0.1:8421`. The first run also compiles GPU kernels.
+at `http://127.0.0.1:8421`, using the model's full context window (256K for
+Qwen3.8-27B). The first run also compiles GPU kernels.
 
 In another terminal, run the example from the repository root:
 
@@ -37,10 +38,10 @@ In another terminal, run the example from the repository root:
 ```
 
 It compacts a short conversation and continues from the resulting memory.
-To select a GPU or change the context length:
+To select a GPU:
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 ./deploy.sh --context-limit 8192
+CUDA_VISIBLE_DEVICES=1 ./deploy.sh
 ```
 
 ## Usage

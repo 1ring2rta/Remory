@@ -41,6 +41,6 @@ installation passed the Python quickstart and JavaScript Codex example.
 Live requests covered generation before compaction, two consecutive compactions,
 partial source blocks, and recovery through a new client. The automated tests
 also cover database reopen, session scoping, source-state capture, and failed
-compactions. Smoke inputs were short; the default 32768-token ceiling was used
-for startup, not a full-length evaluation. CUDA 12.8 and other GPUs have not been
-tested locally.
+compactions. On 2026-10-08, startup and the Python quickstart also passed with the
+model's default 262,144-token context window. Smoke inputs were short; this was
+not a full-length evaluation. CUDA 12.8 and other GPUs have not been tested locally.

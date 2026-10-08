@@ -1,7 +1,9 @@
 # Deployment
 
 `./deploy.sh` installs the runtime and starts Remory with a local SGLang worker.
-The default model is Qwen3.8-27B with the released Remory checkpoint.
+The default model is Qwen3.8-27B with the released Remory checkpoint. Both
+backends read the context limit from the model configuration: 262,144 tokens
+(256K) for Qwen3.8-27B.
 
 ## Requirements
 
@@ -20,8 +22,11 @@ The current SGLang backend handles text requests serially on one GPU.
 ## Options
 
 ```bash
-# Choose a GPU and context length.
-CUDA_VISIBLE_DEVICES=1 ./deploy.sh --context-limit 8192
+# Choose a GPU.
+CUDA_VISIBLE_DEVICES=1 ./deploy.sh
+
+# Optionally use a smaller context window to save GPU memory.
+./deploy.sh --context-limit 32768
 
 # Use another disk for the runtime and session database.
 ./deploy.sh --runtime-dir /path/to/remory-runtime
@@ -35,7 +40,7 @@ CUDA_VISIBLE_DEVICES=1 ./deploy.sh --context-limit 8192
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--context-limit` | `32768` | Input and generated tokens combined |
+| `--context-limit` | Model maximum | Input and generated tokens combined |
 | `--gpu` | `0` | GPU index within `CUDA_VISIBLE_DEVICES` |
 | `--host` | `127.0.0.1` | API bind address |
 | `--port` | `8421` | API port |

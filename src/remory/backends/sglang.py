@@ -14,9 +14,14 @@ from ..types import Contract, Generation, token_ids
 
 
 class SGLangBackend:
-    def __init__(self, config, checkpoint, actor, *, context_limit=32768,
+    def __init__(self, config, checkpoint, actor, *, context_limit=None,
                  memory_fraction=0.8, gpu=0, timeout=600, startup_timeout=900):
         from .sglang_worker import run_worker
+        if context_limit is None:
+            from transformers import AutoConfig
+            actor_config = AutoConfig.from_pretrained(
+                actor, local_files_only=True, trust_remote_code=False)
+            context_limit = actor_config.get_text_config().max_position_embeddings
         if type(context_limit) is not int or context_limit < 2048:
             raise ValueError("context limit must be at least 2048")
         if not 0 < memory_fraction < 1 or type(gpu) is not int or gpu < 0:

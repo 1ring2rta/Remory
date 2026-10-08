@@ -14,7 +14,9 @@ from ..types import Contract, Generation
 
 
 class TransformersBackend:
-    def __init__(self, actor, compressor, tokenizer, contract: Contract, *, context_limit=32768):
+    def __init__(self, actor, compressor, tokenizer, contract: Contract, *, context_limit=None):
+        if context_limit is None:
+            context_limit = actor.config.get_text_config().max_position_embeddings
         self.actor = actor.requires_grad_(False).eval()
         self.compressor = compressor.requires_grad_(False).eval()
         self.tokenizer, self.contract, self.context_limit = tokenizer, contract, context_limit
@@ -30,7 +32,7 @@ class TransformersBackend:
 
     @classmethod
     def from_pretrained(cls, checkpoint="mocoV3/Remory-Qwen3.8-27B", *, actor_path=None,
-                        device="cuda:0", context_limit=32768):
+                        device="cuda:0", context_limit=None):
         from transformers import AutoModelForImageTextToText, AutoTokenizer
         from ..models.load import load_compressor
         compressor, config = load_compressor(checkpoint, device=device, dtype=torch.bfloat16)
