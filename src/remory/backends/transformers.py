@@ -31,7 +31,7 @@ class TransformersBackend:
             raise ValueError("actor embedding width differs from compressor")
 
     @classmethod
-    def from_pretrained(cls, checkpoint="mocoV3/Remory-Qwen3.8-27B", *, actor_path=None,
+    def from_pretrained(cls, checkpoint="mocoV3/Qwen3.8-27B-REMORY-1.9B", *, actor_path=None,
                         device="cuda:0", context_limit=None):
         from transformers import AutoModelForImageTextToText, AutoTokenizer
         from ..models.load import load_compressor

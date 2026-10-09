@@ -51,7 +51,7 @@ class SGLangBackend:
             raise
 
     @classmethod
-    def from_pretrained(cls, checkpoint="mocoV3/Remory-Qwen3.8-27B", *, actor_path=None, **kwargs):
+    def from_pretrained(cls, checkpoint="mocoV3/Qwen3.8-27B-REMORY-1.9B", *, actor_path=None, **kwargs):
         from ..models.load import resolve_checkpoint, resolve_actor
         path, config = resolve_checkpoint(checkpoint)
         return cls(config, path, resolve_actor(config, actor_path), **kwargs)

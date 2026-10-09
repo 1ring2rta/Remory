@@ -6,7 +6,7 @@ it, helping the frozen model continue its work across compactions.
 
 [📄 **Paper**](https://arxiv.org/pdf/2610.11287) |
 [💻 **Code**](https://github.com/1ring2rta/Remory) |
-[🤗 **Models**](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B)
+[🤗 **Models**](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B)
 
 ![Remory: summary-conditioned residual memory alongside standard Codex compaction, with training curves from the paper.](assets/remory.png)
 
@@ -14,7 +14,7 @@ it, helping the frozen model continue its work across compactions.
 
 | Base model | Memory checkpoint | Backends |
 | --- | --- | --- |
-| Qwen3.8-27B | [Remory-Qwen3.8-27B](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B) | SGLang, Transformers |
+| Qwen3.8-27B | [Qwen3.8-27B-REMORY-1.9B](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B) | SGLang, Transformers |
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ Remory hook, and CUDA compiler components.
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
   --model-path Qwen/Qwen3.8-27B \
-  --remory-checkpoint mocoV3/Remory-Qwen3.8-27B \
+  --remory-checkpoint mocoV3/Qwen3.8-27B-REMORY-1.9B \
   --tp 2 \
   --host 127.0.0.1 \
   --port 8421

@@ -30,7 +30,7 @@ def main(argv=None):
     parser.add_argument("--model-path", "--actor", dest="actor", metavar="MODEL_PATH",
         help="actor model ID or local snapshot (default: model recorded in the memory checkpoint)")
     parser.add_argument("--remory-checkpoint", "--checkpoint", dest="checkpoint",
-        default="mocoV3/Remory-Qwen3.8-27B", help="memory checkpoint ID or local directory")
+        default="mocoV3/Qwen3.8-27B-REMORY-1.9B", help="memory checkpoint ID or local directory")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8421)
     parser.add_argument("--tp", "--tp-size", "--tensor-parallel-size", dest="tp_size",

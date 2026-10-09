@@ -9,7 +9,7 @@ from safetensors.torch import load_file
 from .compressor import SummaryResidualCompressor
 from .layers import build_qwen36_27b_dflash_config
 
-WEIGHTS = "mocoV3/Remory-Qwen3.8-27B"
+WEIGHTS = "mocoV3/Qwen3.8-27B-REMORY-1.9B"
 REVISION = "42f1e7011a75989909d1a28673e6f206f1dee791"
 
 

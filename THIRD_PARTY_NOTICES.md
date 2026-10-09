@@ -3,7 +3,7 @@
 `src/remory/models/layers.py`, `src/remory/models/compressor.py`, and
 `src/remory/pyramid.py` are inference-focused adaptations of the Recursive Memory
 implementation (MIT, copyright 2026 Recursive Memory contributors). The loader
-targets the public `mocoV3/Remory-Qwen3.8-27B` release. Training-loss code, target
+targets the public `mocoV3/Qwen3.8-27B-REMORY-1.9B` release. Training-loss code, target
 training wrappers, training launchers, and evaluation harnesses were excluded.
 
 The compressor architecture incorporates work from

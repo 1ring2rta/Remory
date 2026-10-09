@@ -5,4 +5,4 @@
 - `benchmarks.png`: unchanged copy of `figures/headline_benchmarks.png` from the
   paper. GLM BrowseComp scores are 84.9 without and 89.0 with residual memory.
 
-Source: [Remory preprint](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B/tree/main/paper).
+Source: [Remory preprint](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B/tree/main/paper).

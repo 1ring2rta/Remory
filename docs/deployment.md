@@ -46,7 +46,7 @@ the pinned runtime recipe, install it in a new runtime directory.
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
     --model-path Qwen/Qwen3.8-27B \
-    --remory-checkpoint mocoV3/Remory-Qwen3.8-27B \
+    --remory-checkpoint mocoV3/Qwen3.8-27B-REMORY-1.9B \
     --tp 2 \
     --host 127.0.0.1 --port 8421
 ```
@@ -65,7 +65,7 @@ python -m remory.launch_server --tp 2 --context-length 32768
 # Load local snapshots of the released models.
 python -m remory.launch_server \
     --model-path /path/to/Qwen3.8-27B \
-    --remory-checkpoint /path/to/Remory-Qwen3.8-27B \
+    --remory-checkpoint /path/to/Qwen3.8-27B-REMORY-1.9B \
     --tp 2
 ```
 
@@ -98,7 +98,7 @@ that environment and those model paths:
 ```bash
 python examples/quickstart.py \
     --model-path /path/to/Qwen3.8-27B \
-    --remory-checkpoint /path/to/Remory-Qwen3.8-27B
+    --remory-checkpoint /path/to/Qwen3.8-27B-REMORY-1.9B
 ```
 
 ## Transformers

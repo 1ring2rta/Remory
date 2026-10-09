@@ -22,7 +22,7 @@ remory = "remory.cli:main"
 
 [project.urls]
 Repository = "https://github.com/1ring2rta/Remory"
-Weights = "https://huggingface.co/mocoV3/Remory-Qwen3.8-27B"
+Weights = "https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/remory"]

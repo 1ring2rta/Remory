@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(description="Serve compaction with residual memory")
     parser.add_argument("command", choices=["serve", "doctor"])
     parser.add_argument("--backend", choices=["sglang", "transformers"], default="sglang")
-    parser.add_argument("--checkpoint", default="mocoV3/Remory-Qwen3.8-27B")
+    parser.add_argument("--checkpoint", default="mocoV3/Qwen3.8-27B-REMORY-1.9B")
     parser.add_argument("--actor", help="optional local actor snapshot")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--gpu", type=int, default=0, help="SGLang GPU index in CUDA_VISIBLE_DEVICES")
