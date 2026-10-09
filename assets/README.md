@@ -11,9 +11,18 @@ Source: [Remory preprint](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B/
 
 ## Demo
 
-The 53-second video uses the paper's method diagram and recorded task traces.
+The 54-second video uses the paper's method diagram and recorded task traces.
+It moves from a paired Core War replay to four tasks: Core War, cell
+segmentation, a Scheme evaluator, and a BrowseComp search.
+
+The retrieval view shows the 30-frame contact sheet returned to GLM by its image
+tool, with enlarged frames from the same sheet. It comes from
+[candidate performance footage](https://archive.org/download/youtube-HAXtcuXxiiY/HAXtcuXxiiY.mp4)
+examined during the search, and does not depict the final identified singer.
+The overview shows recorded artifacts and final outcomes; chart reveals are
+edited for presentation. No performance audio is used.
 
 Music: [Electric Dreams](https://www.scottbuckley.com.au/library/electric-dreams/)
 by [Scott Buckley](https://www.scottbuckley.com.au), released under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-The excerpt is trimmed to 53.07 seconds, faded in and out, and level-adjusted.
+The excerpt is trimmed to 53.93 seconds, faded in and out, and level-adjusted.
