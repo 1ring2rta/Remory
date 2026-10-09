@@ -20,3 +20,8 @@ weight licenses are separate from this code license.
 
 Codex is an independent upstream project. The integration example does not imply
 upstream endorsement or full client certification.
+
+The demo soundtrack, [Electric Dreams](https://www.scottbuckley.com.au/library/electric-dreams/)
+by Scott Buckley, is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+The video uses a trimmed, faded, and level-adjusted excerpt. This music license
+is separate from the repository's code license.

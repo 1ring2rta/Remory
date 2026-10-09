@@ -8,6 +8,10 @@ it, helping the frozen model continue its work across compactions.
 [💻 **Code**](https://github.com/1ring2rta/Remory) |
 [🤗 **Models**](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B)
 
+https://github.com/user-attachments/assets/d6b8955c-5e60-440a-b5ea-f265c14fb777
+
+<sub>Music: <a href="https://www.scottbuckley.com.au/library/electric-dreams/">Electric Dreams</a> by Scott Buckley · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> · <a href="assets/README.md#demo">Edit details</a></sub>
+
 ![Remory: summary-conditioned residual memory alongside standard Codex compaction, with training curves from the paper.](assets/remory.png)
 
 ## Supported Models
