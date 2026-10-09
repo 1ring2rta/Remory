@@ -20,8 +20,10 @@ were selected for a correct residual result and at least 25% fewer requests,
 with compaction in both runs. They also have fewer repeated outputs and errors,
 and fewer or equal compactions. Baseline success is allowed. Per-case
 tool counts are shown as recorded; the aggregate charts use the full benchmark
-results from the paper. Final outcomes and chart reveals are edited for
-presentation, with no claim of synchronized execution or isolated causality.
+results from the paper. The accuracy lines use a 25–100% right axis; error,
+repeat, and cost bars retain a zero baseline. Final outcomes and chart reveals
+are edited for presentation, with no claim of synchronized execution or
+isolated causality.
 
 The singer-search panel shows a recorded 30-frame contact sheet used to inspect
 candidate footage. That footage does not depict the singer ultimately identified.
