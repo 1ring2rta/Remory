@@ -4,8 +4,9 @@
 from its history. The memory is conditioned on the summary and appended after
 it, helping the frozen model continue its work across compactions.
 
-[**Paper**](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B/blob/main/paper/remory.pdf) |
-[**Models**](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B)
+[📄 **Paper**](https://arxiv.org/pdf/2610.11287) |
+[💻 **Code**](https://github.com/1ring2rta/Remory) |
+[🤗 **Models**](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B)
 
 ![Remory: summary-conditioned residual memory alongside standard Codex compaction, with training curves from the paper.](assets/remory.png)
 
@@ -112,7 +113,7 @@ and Terminal-Bench 2.1. On SummHay, it approaches the full-context joint score
 using 5.2% of the input positions.
 
 Gray bars show published frontier results under their respective evaluation
-protocols. Full results and settings are in the [paper](https://huggingface.co/mocoV3/Remory-Qwen3.8-27B/blob/main/paper/remory.pdf).
+protocols. Full results and settings are in the [paper](https://arxiv.org/pdf/2610.11287).
 
 ## Acknowledgements
 
@@ -129,7 +130,10 @@ and [Transformers](https://github.com/huggingface/transformers).
   author = {Xia, Hanchen and Chen, Baoyou and Ge, Yutang and Deng, Naihao and
             Yang, Senqiao and Dong, Zilong and Yuan, Weihao and Zhu, Siyu},
   year   = {2026},
-  url    = {https://github.com/1ring2rta/Remory}
+  eprint = {2610.11287},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CL},
+  url    = {https://arxiv.org/abs/2610.11287}
 }
 ```
 
