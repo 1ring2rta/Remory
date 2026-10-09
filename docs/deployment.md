@@ -6,6 +6,10 @@ The default model is Qwen3.8-27B with the released Remory checkpoint. Both
 backends read the context limit from the model configuration: 262,144 tokens
 (256K) for Qwen3.8-27B.
 
+The released [GLM memory weights](https://huggingface.co/mocoV3/GLM-5.3-Flash-REMORY-1.24B)
+are available separately. The public launcher and both backends currently support
+Qwen; they do not yet include the GLM actor integration.
+
 ## Requirements
 
 - Linux x86_64, Python 3.11+ with `venv`, `git`, and a C++ compiler.

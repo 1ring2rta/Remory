@@ -6,7 +6,7 @@ it, helping the frozen model continue its work across compactions.
 
 [📄 **Paper**](https://arxiv.org/pdf/2610.11287) |
 [💻 **Code**](https://github.com/1ring2rta/Remory) |
-[🤗 **Models**](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B)
+[🤗 **Models**](#models)
 
 https://github.com/user-attachments/assets/62831257-f2cf-4f98-aabc-95b750d5eae3
 
@@ -14,11 +14,15 @@ https://github.com/user-attachments/assets/62831257-f2cf-4f98-aabc-95b750d5eae3
 
 ![Remory: summary-conditioned residual memory alongside standard Codex compaction, with training curves from the paper.](assets/remory.png)
 
-## Supported Models
+## Models
 
-| Base model | Memory checkpoint | Backends |
+| Base model | Memory checkpoint | Deployment |
 | --- | --- | --- |
 | Qwen3.8-27B | [Qwen3.8-27B-REMORY-1.9B](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B) | SGLang, Transformers |
+| GLM-5.3-Flash | [GLM-5.3-Flash-REMORY-1.24B](https://huggingface.co/mocoV3/GLM-5.3-Flash-REMORY-1.24B) | Weights available; GLM integration required |
+
+The GLM release is the 1.24B checkpoint used in local evaluations, distinct from
+the 1.502B encoder described in the paper. The quick start below supports Qwen.
 
 ## Quick Start
 
