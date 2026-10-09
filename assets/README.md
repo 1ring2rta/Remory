@@ -14,6 +14,9 @@ Source: [Remory preprint](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B/
 The 54-second video uses the paper's method diagram and recorded task traces.
 It moves from a paired Core War replay to four tasks: Core War, cell
 segmentation, a Scheme evaluator, and a BrowseComp search.
+Each task shows both runs side by side, with matching context-chart axes and
+separate repeat, error, and compaction counts. Both cell runs, both Scheme runs,
+and both retrieval runs pass; the cell baseline finishes without compaction.
 
 The retrieval view shows the 30-frame contact sheet returned to GLM by its image
 tool, with enlarged frames from the same sheet. It comes from
