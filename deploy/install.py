@@ -19,9 +19,9 @@ import venv
 from toolchain import install_toolchain, prepare_headers
 
 ROOT = Path(__file__).resolve().parents[1]
-KERNEL130 = ("https://github.com/sgl-project/whl/releases/download/v0.4.1/"
-    "sglang_kernel-0.4.1+cu130-cp310-abi3-manylinux2014_x86_64.whl"
-    "#sha256=9164b8fc2c1652a52156f21d1a960116670c29033f686946840ef5b13558c5c0")
+KERNEL130 = ("https://github.com/sgl-project/whl/releases/download/v0.4.7/"
+    "sglang_kernel-0.4.7+cu130-cp310-abi3-manylinux2014_x86_64.whl"
+    "#sha256=d312128f33e95dec2f7e9f6b7f4295d092e430cb9ef3e07a3a970e0741c7023e")
 
 
 def run(argv, **kwargs):
@@ -39,17 +39,10 @@ def cuda_build(requested):
     call("cuDriverGetVersion", ctypes.byref(driver))
     if count.value == 0:
         raise RuntimeError("no NVIDIA GPUs are visible")
-    capabilities = []
-    for index in range(count.value):
-        device, major, minor = ctypes.c_int(), ctypes.c_int(), ctypes.c_int()
-        call("cuDeviceGet", ctypes.byref(device), index)
-        call("cuDeviceComputeCapability", ctypes.byref(major), ctypes.byref(minor), device)
-        capabilities.append((major.value, minor.value))
-    needs130 = max(capabilities) >= (10, 3)
-    build = ("cu130" if needs130 else "cu128") if requested == "auto" else requested
-    if needs130 and build != "cu130":
-        raise RuntimeError("SM 10.3+ requires --cuda cu130")
-    if driver.value < (13000 if build == "cu130" else 12080):
+    build = "cu130" if requested == "auto" else requested
+    if build != "cu130":
+        raise RuntimeError("the shared Qwen/GLM SGLang runtime requires CUDA 13.0")
+    if driver.value < 13000:
         raise RuntimeError(f"NVIDIA driver is too old for {build}")
     return build
 
@@ -93,15 +86,16 @@ def install(state, build):
         raise RuntimeError("unexpected SGLang source revision")
     setup.patch_installation(source / "python/sglang")
     env = {**os.environ, "PIP_CONFIG_FILE": os.devnull, "PIP_EXTRA_INDEX_URL": "",
-           "SETUPTOOLS_SCM_PRETEND_VERSION": recipe["version"]}
+           "SETUPTOOLS_SCM_PRETEND_VERSION": recipe["version"],
+           "SGLANG_BUILD_RUST_EXTS": "none"}
     pip = [python, "-m", "pip", "install"]
     print(f"[Remory] Installing the pinned {build} runtime", flush=True)
     # Select CUDA wheels here; resolve their dependencies from PyPI below.
-    run([*pip, "--no-deps", f"torch==2.9.1+{build}", f"torchvision==0.24.1+{build}",
-         f"torchaudio==2.9.1+{build}", "--index-url", f"https://download.pytorch.org/whl/{build}"], env=env)
+    run([*pip, "--no-deps", f"torch==2.13.0+{build}", f"torchvision==0.28.0+{build}",
+         f"torchaudio==2.11.0+{build}", "--index-url", f"https://download.pytorch.org/whl/{build}"], env=env)
     run([*pip, "--index-url", "https://pypi.org/simple", "-c", ROOT / "deploy/constraints.txt",
-         "-e", source / "python", KERNEL130 if build == "cu130" else "sglang-kernel==0.4.1",
-         "-e", str(ROOT) + "[server,transformers]", "dill==0.3.9"], env=env)
+         "-e", source / "python", KERNEL130,
+         "-e", str(ROOT) + "[server,transformers]", "dill==0.4.1"], env=env)
     cuda = install_toolchain(state, build)
     prepare_headers(python, cuda, build)
     marker.write_text(json.dumps({"fingerprint": fingerprint, "sglang": recipe["commit"],
@@ -123,7 +117,7 @@ def prepare_runtime(runtime_dir, cuda):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-dir", type=Path, default=ROOT / ".remory")
-    parser.add_argument("--cuda", choices=["auto", "cu128", "cu130"], default="auto")
+    parser.add_argument("--cuda", choices=["auto", "cu130"], default="auto")
     args = parser.parse_args()
     state, python = prepare_runtime(args.runtime_dir, args.cuda)
     print(f"Runtime ready: {python}")

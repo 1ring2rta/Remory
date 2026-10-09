@@ -34,8 +34,11 @@ class TransformersBackend:
     def from_pretrained(cls, checkpoint="mocoV3/Qwen3.8-27B-REMORY-1.9B", *, actor_path=None,
                         device="cuda:0", context_limit=None):
         from transformers import AutoModelForImageTextToText, AutoTokenizer
-        from ..models.load import load_compressor
-        compressor, config = load_compressor(checkpoint, device=device, dtype=torch.bfloat16)
+        from ..models.load import is_glm, load_compressor, resolve_checkpoint
+        path, config = resolve_checkpoint(checkpoint)
+        if is_glm(config):
+            raise ValueError("GLM requires SGLang; start python -m remory.launch_server")
+        compressor, config = load_compressor(path, device=device, dtype=torch.bfloat16)
         actor_id = actor_path or config["target_model"]
         kwargs = {"revision": config["target_revision"]} if actor_path is None else {}
         actor = AutoModelForImageTextToText.from_pretrained(

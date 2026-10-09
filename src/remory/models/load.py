@@ -11,12 +11,19 @@ from .layers import build_qwen36_27b_dflash_config
 
 WEIGHTS = "mocoV3/Qwen3.8-27B-REMORY-1.9B"
 REVISION = "42f1e7011a75989909d1a28673e6f206f1dee791"
+GLM_WEIGHTS = "mocoV3/GLM-5.3-Flash-REMORY-1.24B"
+GLM_REVISION = "532390e5b72f5eddf7edec60afa26138aff009ef"
 
 
-def resolve_checkpoint(checkpoint: str = WEIGHTS, *, revision=REVISION):
+def is_glm(config):
+    return config.get("schema") == "remory_glm53_local_evaluation_v1"
+
+
+def resolve_checkpoint(checkpoint: str = WEIGHTS, *, revision=None):
     path = Path(checkpoint)
     if not path.is_dir():
         from huggingface_hub import snapshot_download
+        revision = revision or {WEIGHTS: REVISION, GLM_WEIGHTS: GLM_REVISION}.get(checkpoint)
         path = Path(snapshot_download(checkpoint, revision=revision,
                                      allow_patterns=["config.json", "manifest.json", "model.safetensors"]))
     config = json.loads((path / "config.json").read_text())
@@ -39,7 +46,7 @@ def resolve_actor(config, actor_path=None):
         allow_patterns=["*.json", "*.safetensors", "*.jinja", "*.txt", "*.model"]))
 
 
-def load_compressor(checkpoint: str = WEIGHTS, *, revision=REVISION, device="cpu", dtype=None):
+def load_compressor(checkpoint: str = WEIGHTS, *, revision=None, device="cpu", dtype=None):
     path, config = resolve_checkpoint(checkpoint, revision=revision)
     manifest = json.loads((path / "manifest.json").read_text())
     with (path / "model.safetensors").open("rb") as stream:
@@ -47,6 +54,28 @@ def load_compressor(checkpoint: str = WEIGHTS, *, revision=REVISION, device="cpu
     if checksum != manifest["safetensors_sha256"]:
         raise ValueError("checkpoint weights checksum mismatch")
     c = config["compressor"]
+    if is_glm(config):
+        expected = {"target_hidden_size": 4096, "hidden_size": 4096, "compression_ratio": 16,
+                    "num_hidden_layers": 6, "target_layer_ids": [0, 11, 22, 33, 44],
+                    "intermediate_size": 12288, "num_attention_heads": 32,
+                    "num_key_value_heads": 8, "head_dim": 128,
+                    "layer_types": ["sliding_attention"] * 5 + ["full_attention"]}
+        if any(c.get(k) != v for k, v in expected.items()):
+            raise ValueError("unsupported GLM checkpoint architecture")
+        from .glm import build_compressor
+        with torch.device("meta"):
+            model = build_compressor(config)
+        model.load_state_dict(load_file(str(path / "model.safetensors")), strict=True, assign=True)
+        with torch.device("cpu"):
+            model.rotary_emb = type(model.rotary_emb)(model.config, device="cpu")
+        buffers = {name: value.detach().clone() for name, value in model.named_buffers()}
+        model = model.to(device=device, dtype=dtype or torch.float32).requires_grad_(False).eval()
+        # The evaluated GLM path preserves deterministic RoPE and RMS buffers in FP32.
+        for name, value in buffers.items():
+            parent, _, leaf = name.rpartition(".")
+            owner = model.get_submodule(parent) if parent else model
+            owner._buffers[leaf] = value.to(device=device)
+        return model, config
     expected = {"target_hidden_size": 5120, "hidden_size": 5120, "compression_ratio": 16,
                 "num_hidden_layers": 5, "target_layer_ids": [1, 16, 31, 46, 61],
                 "intermediate_size": 17408, "num_attention_heads": 32,

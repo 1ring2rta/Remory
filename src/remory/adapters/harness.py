@@ -55,6 +55,26 @@ class ChatTemplate:
     def summary(self, text):
         return list(self.tokenizer.encode(text, add_special_tokens=False))
 
+    def final_text(self, text):
+        return text.strip()
+
+
+class GlmChatTemplate(ChatTemplate):
+    """Native GLM thinking boundary; only the completed answer becomes a summary."""
+    def __init__(self, tokenizer, *, tools=None, reasoning_effort="max"):
+        super().__init__(tokenizer, tools=tools,
+            template_kwargs={"reasoning_effort": reasoning_effort, "clear_thinking": False})
+
+    def final_text(self, text):
+        if text.count("</think>") != 1:
+            raise RuntimeError("GLM did not finish its reasoning; retain the previous context")
+        final = text.split("</think>", 1)[1].strip()
+        for end in ("<|endoftext|>", "<|user|>", "<|observation|>"):
+            final = final.removesuffix(end).rstrip()
+        if "<think>" in final:
+            raise RuntimeError("invalid GLM final answer boundary")
+        return final
+
 
 class Harness:
     def __init__(self, client, codec: ChatTemplate):
@@ -79,7 +99,7 @@ class Harness:
         reason = result.get("meta_info", {}).get("finish_reason")
         if reason == "length" or isinstance(reason, dict) and reason.get("type") in {"length", "abort", "error"}:
             raise RuntimeError("summary did not complete; keep the previous context")
-        summary = result["text"].strip()
+        summary = getattr(self.codec, "final_text", str.strip)(result["text"])
         if not summary:
             raise RuntimeError("summary is empty; keep the previous context")
         if summary_schema:

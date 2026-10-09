@@ -16,6 +16,8 @@ from ..types import Contract, Generation, token_ids
 class SGLangBackend:
     def __init__(self, config, checkpoint, actor, *, context_limit=None,
                  memory_fraction=0.8, gpu=0, tp_size=1, timeout=600, startup_timeout=900):
+        if config.get("schema") == "remory_glm53_local_evaluation_v1":
+            raise ValueError("GLM uses the native HTTP runtime; start python -m remory.launch_server")
         from .sglang_worker import run_worker
         if context_limit is None:
             from transformers import AutoConfig

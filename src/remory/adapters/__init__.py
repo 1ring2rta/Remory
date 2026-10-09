@@ -1,3 +1,3 @@
-from .harness import Checkpoint, Harness, ChatTemplate
+from .harness import Checkpoint, Harness, ChatTemplate, GlmChatTemplate
 
-__all__ = ["Checkpoint", "Harness", "ChatTemplate"]
+__all__ = ["Checkpoint", "Harness", "ChatTemplate", "GlmChatTemplate"]

@@ -69,7 +69,8 @@ pairs together. Retained messages go into the next generation's continuation.
 
 `Harness.compact` generates the summary through `/generate` before calling this
 route. A harness with its own summary method can supply `summary_ids` directly.
-The released model uses a JSON summary with five array fields:
+The Qwen checkpoint uses a JSON summary with five array fields. The GLM example
+uses a plain-text checkpoint after extracting its completed answer.
 
 ```json
 {
@@ -91,15 +92,20 @@ Save the handle with the summary before replacing the old history. `receipt`
 records token counts, source hashes, memory size, and compression depths.
 
 For subsequent compactions, set `previous` to the old handle, keep the prefix
-identical, and send only newly removed history. Remory restores the previous
-summary and memory before re-encoding them with that history. Each compaction
-creates a new immutable handle, so branches can keep different checkpoints.
+identical, and send only newly removed history. Qwen re-encodes the previous
+summary and memory with that history, conditioned on the new summary. GLM keeps
+the previous memory frontier, encodes the new history, and merges nodes when
+needed. Each compaction creates a new immutable handle, so branches can keep
+different checkpoints.
 
-Internally, each residual encoding pass posts to the same SGLang `/generate`
+Internally, Qwen encoding posts to the same SGLang `/generate`
 endpoint with `max_new_tokens: 0`, a Remory operation in
 `sampling_params.custom_params`, and `return_hidden_states: true`. The hook
 captures the selected actor layers and runs the memory network in the worker.
 The hidden-state response channel carries the resulting memory rows.
+GLM uses chunked prefill with a one-token generation budget and transfers encoded
+rows through the server's binary cache, verified by checksums and completion
+receipts. Both models expose the same compact and memory-handle API to clients.
 
 ## Stored memory
 

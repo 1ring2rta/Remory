@@ -19,10 +19,11 @@ https://github.com/user-attachments/assets/62831257-f2cf-4f98-aabc-95b750d5eae3
 | Base model | Memory checkpoint | Deployment |
 | --- | --- | --- |
 | Qwen3.8-27B | [Qwen3.8-27B-REMORY-1.9B](https://huggingface.co/mocoV3/Qwen3.8-27B-REMORY-1.9B) | SGLang, Transformers |
-| GLM-5.3-Flash | [GLM-5.3-Flash-REMORY-1.24B](https://huggingface.co/mocoV3/GLM-5.3-Flash-REMORY-1.24B) | Weights available; GLM integration required |
+| GLM-5.3-Flash | [GLM-5.3-Flash-REMORY-1.24B](https://huggingface.co/mocoV3/GLM-5.3-Flash-REMORY-1.24B) | [SGLang](docs/deployment.md#glm-53-flash) |
 
 The GLM release is the 1.24B checkpoint used in local evaluations, distinct from
-the 1.502B encoder described in the paper. The quick start below supports Qwen.
+the 1.502B encoder described in the paper. Both models use the same pinned SGLang
+version and launcher. The quick start below uses Qwen.
 
 ## Quick Start
 

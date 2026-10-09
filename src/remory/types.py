@@ -52,6 +52,12 @@ class Contract:
 
     @classmethod
     def from_config(cls, config: dict, *, identity: str) -> Contract:
+        if config.get("schema") == "remory_glm53_local_evaluation_v1":
+            c, s = config["compressor"], config["token_contract"]
+            return cls(c["target_hidden_size"], 1024, c["compression_ratio"], 4096,
+                       8, 154820, tuple(s["student_summary_before_ids"]),
+                       tuple(s["student_summary_after_ids"]), tuple(s["student_memory_before_ids"]),
+                       tuple(s["student_memory_after_ids"]), digest({"config": config, "backend": identity}))
         c, r, s = config["compressor"], config["residual"], config["summary_contract"]
         return cls(c["target_hidden_size"], r["block_tokens"], r["compression_ratio"],
                    r["memory_budget"], c["max_depth"], s["end_token_id"],

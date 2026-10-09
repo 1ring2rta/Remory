@@ -22,6 +22,13 @@ IDs. The JavaScript example adds residual memory, saves a Responses compaction
 item, and continues through SGLang `/generate`. Use `REMORY_URL` and
 `REMORY_SESSION` to configure the JavaScript client.
 
+For GLM, start the [GLM server](../../docs/deployment.md#glm-53-flash) and pass
+`--model-path zai-org/GLM-5.3-Flash --remory-checkpoint mocoV3/GLM-5.3-Flash-REMORY-1.24B`
+to the Python example. It renders GLM's native tokens; the same JavaScript bridge
+then uses them unchanged. In your provider, use `GlmChatTemplate` to extract the
+completed answer from GLM's reasoning before encoding the summary, and omit the
+Qwen-specific JSON schema.
+
 ## Provider integration
 
 [`bridge.mjs`](bridge.mjs) exports `compactResponse`, `readCompactionItem`, and

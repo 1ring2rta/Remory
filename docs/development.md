@@ -6,7 +6,7 @@ pytest -q
 node --test integrations/test.mjs
 ```
 
-Install `.[test,transformers]` to include the tiny Qwen model and memory-hook tests.
+Install `.[test,transformers]` to include the model and memory-hook tests.
 These run locally without downloading the released 27B model. An optional GitHub
 Actions configuration is in [ci-tests.yml](ci-tests.yml).
 
@@ -19,18 +19,20 @@ Actions configuration is in [ci-tests.yml](ci-tests.yml).
 [`launch_server.py`](../src/remory/launch_server.py) parses launch options and
 configures the installed CUDA toolchain before importing SGLang.
 [`sglang_server.py`](../src/remory/sglang_server.py) extends SGLang's native HTTP
-server. Normal answers and summaries go through `/generate`; residual encoding
-also calls `/generate`, with `max_new_tokens=0` and Remory parameters. Its
-[model hook](../src/remory/backends/sglang_hook.py) captures selected decoder states
-and replaces placeholder embeddings with residual memory during prefill. The
-worker loads both the actor and memory network. It uses full prefills and
-serializes requests. Shared prefix caching, CUDA graphs, and overlapping
-schedules are disabled; generation keeps its own KV and recurrent state.
+server. Normal answers, summaries, and residual encoding use `/generate`.
+The Qwen [hook](../src/remory/backends/sglang_hook.py) captures decoder outputs
+with a complete prefill and returns packed memory rows. It disables shared
+prefix caching and uses one active request.
+The GLM [hook](../src/remory/backends/glm_hook.py) captures mHC attention inputs
+across prefill chunks, scatters memory at absolute input positions, and confirms
+consumption after the complete prefill. Its internal binary cache is separate
+from the durable, session-bound SQLite store. Each request has a unique cache
+salt. Both paths disable CUDA graphs and overlapping schedules.
 
-SGLang is pinned to `f08726fd56c7ff6d8bd258f1545f98148fa4ef58` (0.5.13).
-[Two patches](../deploy/sglang.patch) initialize the hook and return packed memory
-rows, including partial source blocks. The installer and worker verify their
-hashes against the [recipe](../src/remory/backends/sglang_recipe.json).
+SGLang is pinned to `575759d90af942eeff89f1c8c33a1fcdb2da4181` for both models.
+The [patch](../deploy/sglang.patch) initializes the Qwen hook, returns packed
+memory rows, and connects the GLM adapter and native image processor. The installer
+and launcher verify all eight files against the [recipe](../src/remory/backends/sglang_recipe.json).
 
 `Harness.compact` generates the summary, then calls `/v1/compact` to build and
 save residual memory. That route uses the same server's native `/generate`
@@ -43,25 +45,24 @@ recursion, and storage; the backend supplies encoding and embedding-aware genera
 
 ## Tested setup
 
-The 2026-10-07 check used Python 3.12, Node 22, one NVIDIA L20D, CUDA 13.0,
-and the full released Qwen3.8-27B and Remory weights. A clean `deploy.sh`
-installation passed the Python quickstart and JavaScript Codex example.
+On 2026-10-09, the shared SGLang revision passed 42 Python tests and four
+JavaScript tests, using Python 3.12, PyTorch 2.13.0, Transformers 5.12.1, CUDA 13.0,
+and Node 22. All eight patched SGLang files passed checksum verification. The
+installer's dependency resolution passed; a fresh environment installation has
+not been rerun for this revision.
 
-Live requests covered generation before compaction, two consecutive compactions,
-partial source blocks, and recovery through a new client. The automated tests
-also cover database reopen, session scoping, source-state capture, and failed
-compactions. On 2026-10-08, the native SGLang deployment passed the Python
-quickstart with a generated summary, the Codex example, two successive compactions,
-resume through a new client, and native SSE with residual memory. It used the
-model's default 262,144-token context window. Smoke inputs were short; this was
-not a full-length evaluation. CUDA 12.8 and other GPUs have not been tested locally.
+The released Qwen actor and memory weights passed the native launcher and Python
+quickstart on two L20D GPUs, with the default 256K context configuration. Live
+checks covered summary generation, a 53-token partial block returning all 64
+soft tokens, two successive compactions, continuation through a new client,
+native SSE, and the JavaScript Codex example. Inputs were short; this was not a
+full-context evaluation. The 2 × 80 GB budget has not been measured on 80 GB cards.
 
-Direct `python -m remory.launch_server` startup and the quickstart also passed
-with CUDA and runtime paths detected from the active environment.
-
-The `--tp 2` launch passed generation, two successive compactions with generated
-summaries, and continuation on two L20D GPUs on 2026-10-08, with the default
-256K context configuration and short inputs. The shared test container needed
-NCCL socket transport and CUDA memory allocation enabled to work around its
-network plugin and 64 MB shared-memory limit. These settings are local to that
-test. The 2 × 80 GB deployment budget has not been measured on 80 GB cards.
+The released 1.24B GLM encoder produced bitwise-identical CUDA outputs to the
+local evaluation encoder for 37-token and 1,024-token source blocks. Eight
+reference tests also passed for mHC feature capture, chunked memory injection,
+request alignment, and vision-prefix validation. The full 320B GLM actor has
+not been rerun through the public launcher; the integration ports the previously
+evaluated local runtime on this same SGLang revision. The GPU checks used an
+existing compatible environment and test-only settings for the shared node's
+NCCL and available memory.

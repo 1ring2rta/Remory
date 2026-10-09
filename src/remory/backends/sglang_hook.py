@@ -1,4 +1,4 @@
-"""Remory's only model hook: capture source states and scatter soft memory.
+"""Qwen's model hook: capture source states and scatter soft memory.
 
 The deployment uses one request at a time, a complete prefill, no shared prefix
 cache, and no CUDA graphs. Ordinary autoregressive KV caching remains enabled.

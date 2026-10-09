@@ -16,8 +16,8 @@ const response = await compactResponse(client, { prefixIds: data.prefix_ids,
 console.log(JSON.stringify(response));
 const result = await generateFromItems(client, [...response.output,
   { type: "message", role: "user", content: "What should we do next?" }], {
-  // The quickstart rendered this exact continuation with the native Qwen template.
+  // The quickstart rendered this exact continuation with the actor's native template.
   // A provider supplies its own renderer for arbitrary Responses input items.
-  render: async () => data.continuation_ids, maxNewTokens: 128,
+  render: async () => data.continuation_ids, maxNewTokens: data.max_new_tokens ?? 128,
 });
 console.log(result.text);
