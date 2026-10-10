@@ -55,6 +55,10 @@ CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
 `--model-path` accepts the checkpoint's target model ID or a local snapshot.
 The published model ID resolves to the actor revision recorded in the checkpoint.
 Both model arguments can be omitted to use the released Qwen defaults.
+The memory checkpoint is pinned in [`models/load.py`](../src/remory/models/load.py).
+After updating an existing clone with `git pull --ff-only`, restart the server
+and start a new agent session. Saved residual memory belongs to the checkpoint
+that created it.
 
 ### GLM-5.3-Flash
 

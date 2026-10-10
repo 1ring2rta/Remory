@@ -10,7 +10,7 @@ from .compressor import SummaryResidualCompressor
 from .layers import build_qwen36_27b_dflash_config
 
 WEIGHTS = "mocoV3/Qwen3.8-27B-REMORY-1.9B"
-REVISION = "42f1e7011a75989909d1a28673e6f206f1dee791"
+REVISION = "aafd984cbecff137273c33cbee7d4fc2395f688b"
 GLM_WEIGHTS = "mocoV3/GLM-5.3-Flash-REMORY-1.24B"
 GLM_REVISION = "532390e5b72f5eddf7edec60afa26138aff009ef"
 

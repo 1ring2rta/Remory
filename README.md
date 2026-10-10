@@ -58,6 +58,9 @@ CUDA_VISIBLE_DEVICES=0,1 python -m remory.launch_server \
 The context window defaults to the model maximum (256K for Qwen3.8-27B).
 The first run downloads weights and compiles GPU kernels.
 
+For an existing clone, run `git pull --ff-only` and restart the server to use
+the updated checkpoint. The launcher downloads the pinned release automatically.
+
 ### 3. Generate and compact
 
 ```bash

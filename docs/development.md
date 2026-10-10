@@ -51,12 +51,18 @@ and Node 22. All eight patched SGLang files passed checksum verification. The
 installer's dependency resolution passed; a fresh environment installation has
 not been rerun for this revision.
 
-The released Qwen actor and memory weights passed the native launcher and Python
-quickstart on two L20D GPUs, with the default 256K context configuration. Live
-checks covered summary generation, a 53-token partial block returning all 64
+The Qwen actor and memory release available on 2026-10-09 passed the native
+launcher and Python quickstart on two L20D GPUs, with the default 256K context
+configuration. Live checks covered summary generation, a 53-token partial block returning all 64
 soft tokens, two successive compactions, continuation through a new client,
 native SSE, and the JavaScript Codex example. Inputs were short; this was not a
 full-context evaluation. The 2 × 80 GB budget has not been measured on 80 GB cards.
+
+The updated Qwen checkpoint was checked on CPU on 2026-10-10. All 97 tensors
+match the source weights exactly. Both the Hugging Face loader and this runtime
+produce bitwise-identical encoder outputs to the source, including a partial
+block and recursive depth inputs. The quickstart accepts its plain-text summary
+contract. The full actor has not been rerun for this checkpoint update.
 
 The released 1.24B GLM encoder produced bitwise-identical CUDA outputs to the
 local evaluation encoder for 37-token and 1,024-token source blocks. Eight

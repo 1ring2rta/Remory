@@ -43,7 +43,7 @@ def main():
             "Include the goal, current progress, constraints, and next steps. "
             "Return only the checkpoint in plain text.", "output_schema": None})
         checkpoint = harness.compact(prefix_messages=prefix, removed_messages=history,
-            summary_prompt=contract["prompt"], summary_schema=contract["output_schema"],
+            summary_prompt=contract["prompt"], summary_schema=contract.get("output_schema"),
             max_summary_tokens=4096 if glm else 1024)
         try:
             print("Generated summary:", checkpoint.summary, flush=True)
